@@ -1,0 +1,30 @@
+<mujoco model="rabbit">
+    <compiler angle="radian" />
+    <size njmax="500" nconmax="100" />
+    <worldbody>
+        <body name="torso" pos="0 0 0">
+            <inertial pos="0 0 0.24" quat="0.707107 0 0 0.707107" mass="12" diaginertia="0.443333 0.443333 0.443333" />
+            <geom size="0.025 0.315" pos="0 0 0.315" type="cylinder" rgba="0 0 0 1" />
+            <body name="right_thigh" pos="0 0 0">
+                <inertial pos="0 0 0.11" mass="6.8" diaginertia="0.47 0.47 0.47" />
+                <joint name="q1_right" pos="0 0 0" axis="0 1 0" />
+                <geom size="0.025 0.2" pos="0 0 0.2" type="cylinder" rgba="0 0 1 1" />
+                <body name="right_shin" pos="0 0 0.4">
+                    <inertial pos="0 0 0.24" mass="3.2" diaginertia="0.2 0.2 0.2" />
+                    <joint name="q2_right" pos="0 0 0" axis="0 1 0" />
+                    <geom size="0.025 0.2" pos="0 0 0.2" type="cylinder" rgba="1 0 0 1" />
+                </body>
+            </body>
+            <body name="left_thigh" pos="0 0 0">
+                <inertial pos="0 0 0.11" mass="6.8" diaginertia="0.47 0.47 0.47" />
+                <joint name="q1_left" pos="0 0 0" axis="0 1 0" />
+                <geom size="0.025 0.2" pos="0 0 0.2" type="cylinder" rgba="1 0 0 1" />
+                <body name="left_shin" pos="0 0 0.4">
+                    <inertial pos="0 0 0.24" mass="3.2" diaginertia="0.2 0.2 0.2" />
+                    <joint name="q2_left" pos="0 0 0" axis="0 1 0" />
+                    <geom size="0.025 0.2" pos="0 0 0.2" type="cylinder" rgba="0 0 1 1" />
+                </body>
+            </body>
+        </body>
+    </worldbody>
+</mujoco>
