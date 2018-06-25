@@ -30,11 +30,14 @@ class NeuralNetwork():
 			else:
 				self.activations + [tanh]
 
+		unit_list = [input_dim]
+		for u in self.units:
+			unit_list += [u, u]
+		unit_list += [output_dim]
 		self.shapes = []
-		unit_list = [input_dim]+self.units+[output_dim]
-		for l in range(self.num_layers):
+		for l in range(self.num_layers+1):
 			self.shapes += [(unit_list[2*l], unit_list[2*l+1])]
-
+		
 		self.weight = []
 		self.bias = []
 		self.parameter_count = 0
