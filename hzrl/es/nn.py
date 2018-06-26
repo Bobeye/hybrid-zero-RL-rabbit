@@ -14,7 +14,7 @@ class NeuralNetwork():
 	def __init__(self, input_dim=1,
 				 output_dim=20,
 				 units=[20,20,20],
-				 activations=["relu", "relu", "passthru"]):
+				 activations=["relu", "relu", "passthru", "passthru"]):
 
 		self.input_dim = input_dim
 		self.output_dim = output_dim
@@ -35,7 +35,7 @@ class NeuralNetwork():
 			unit_list += [u, u]
 		unit_list += [output_dim]
 		self.shapes = []
-		for l in range(self.num_layers+1):
+		for l in range(self.num_layers):
 			self.shapes += [(unit_list[2*l], unit_list[2*l+1])]
 		
 		self.weight = []
