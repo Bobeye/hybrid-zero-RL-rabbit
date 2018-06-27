@@ -101,6 +101,7 @@ class Policy():
 		self.sample_time = 1/feq
 		self.pid = PID(kp, 0., kd, mn=np.full((action_size,),action_min), 
 								   mx=np.full((action_size,),action_max))
+		
 
 	def get_action(self, state):
 		err = np.zeros(self.action_size,) + np.sum(state)*(np.sum(self.theta)/10000.)
