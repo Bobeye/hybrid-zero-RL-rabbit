@@ -132,7 +132,7 @@ def simulate(model, solution, settings, desired_velocity):
 	pi = Policy(theta=theta, action_size=settings.action_size, 
 				action_min=settings.action_min, action_max=settings.action_max,
 				kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency)
-	env = make_env(settings.env_name)
+	env = make_env(settings.env_name, desired_vel = desired_velocity)
 	
 	total_reward_list = []
 	timesteps = 0
