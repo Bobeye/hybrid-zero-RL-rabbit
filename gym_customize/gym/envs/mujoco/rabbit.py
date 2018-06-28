@@ -3,7 +3,8 @@ from gym import utils
 from gym.envs.mujoco import mujoco_env
 
 class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
-    def __init__(self):
+    def __init__(self, desired_vel=10.):
+        self.desired_vel = desired_vel
         mujoco_env.MujocoEnv.__init__(self, 'rabbit_new.xml', 1)
         utils.EzPickle.__init__(self)
 
@@ -12,34 +13,45 @@ class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.do_simulation(a, self.frame_skip)
         posafter, height, ang = self.sim.data.qpos[0:3]
         alive_bonus = 1.0
-        reward = (posafter - posbefore) / self.dt
-        reward += alive_bonus
-        reward -= 1e-3 * np.square(a).sum()
+        velocity = (posafter - posbefore) / self.dt
+        if velocity < 0:
+            velocity_reward = 0.
+        elif velocity > self.desired_vel:
+            velocity_reward = 1
+        else:
+            velocity_reward = (self.desired_vel - velocity) / self.desired_vel
+        action_reward = -1e-3 * np.sum(a**2)
+        height_reward = height
+        reward = alive_bonus + velocity_reward + height_reward + action_reward
+
+        done = False
         s = self.state_vector()
-        done = not (np.isfinite(s).all() and (np.abs(s[2:]) < 100).all() and
-                    (height > .7) and (abs(ang) < .2))
+        if not np.isfinite(s).all() or not (np.abs(s[2:]) < 100).all():
+            done = True
+        if height < 0.3:
+            done = True
+        if abs(ang%(2*np.pi)) < 1.:
+            done = True 
+
         ob = self._get_obs()
         return ob, reward, done, {}
 
     def _get_obs(self):
-
-        #added by GC
-        #print("qpos = {}".format(self.sim.data.qpos))
-        #print(type(self.sim.data.qpos))
-        #> <class 'numpy.ndarray'>
-        #print("qvel = {}".format(self.sim.data.qvel))
-        #print(type(self.sim.data.qvel))
-        #> <class 'numpy.ndarray'>
-        #added by GC
-
         return np.concatenate([
             self.sim.data.qpos.flat[0:],
             np.clip(self.sim.data.qvel.flat, -10, 10)
         ])
 
     def reset_model(self):
-        qpos = self.init_qpos + self.np_random.uniform(low=-.005, high=.005, size=self.model.nq)
-        qvel = self.init_qvel + self.np_random.uniform(low=-.005, high=.005, size=self.model.nv)
+        position = np.array([[-0.2000, 0.7546, 0.1675, 2.4948, 0.4405, 3.1894, 0.2132],
+                            [-0.1484, 0.7460, 0.1734, 2.4568, 0.6307, 2.9492, 0.6271],
+                            [-0.1299, 0.7518, 0.1767, 2.4873, 0.6133, 2.9434, 0.6740],
+                            [-0.1121, 0.7567, 0.1794, 2.5177, 0.5954, 2.9297, 0.7256]])
+        velocity = np.array([[0.7743, 0.2891, 0.3796, 1.1377, -0.9273, -0.1285, 1.6298],
+                             [0, 0, 0, 0, 0, 0, 0],
+                             [0, 0, 0, 0, 0, 0, 0]])
+        qpos = position[0,:] + self.np_random.uniform(low=-.005, high=.005, size=self.model.nq)
+        qvel = velocity[0,:] + self.np_random.uniform(low=-.005, high=.005, size=self.model.nv)
         self.set_state(qpos, qvel)
         return self._get_obs()
 
@@ -49,40 +61,7 @@ class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.viewer.cam.lookat[2] += .8
         self.viewer.cam.elevation = -20
 
+
+
     def get_state(self):
-        #print("Printing initial state....")
-        #s = self.state_vector()
-        #print(s)
-        #init_pos = self.sim.data.qpos
-        #init_vel = self.sim.data.qvel
-        #return init_pos, init_vel
-        #return self.init_qpos, self.init_qvel
         return self.sim.data.qpos, self.sim.data.qvel
-
-    #def get_state
-
-    #def set_state(self,pos,vel):
-    #    pass
-
-# class joint:
-#     def __init__(self, joint_name, Kp, Ki,Kd):
-#         self.name = joint_name   
-#         self.eT0 = 0
-#         self.iT0 = 0
-#         self.Kp = Kp
-#         self.Kd = Ki
-#         self.Ki = Kd
-
-
-#     def pid_update(self, Kp, Ki, Kd, desired_value, actual_value, dt):
-#         self.actual_value = RabbitEnv.sim.data.qpos[1]
-#         self.error = desired_value - actual_value
-#         integral = integral + (error*dt)
-#         derivative = (error - error_prior)/dt
-#         output = Kp*error + Ki*integral + Kd*derivative
-#         error_prior = error
-
-#         print("this is working")
-
-
-

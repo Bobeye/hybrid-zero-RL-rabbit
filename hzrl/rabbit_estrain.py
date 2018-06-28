@@ -6,6 +6,8 @@ from __future__ import division
 
 from es.nn import NeuralNetwork 
 from es.oes import OpenES
+import hzd.trajectory as trajectory
+import hzd.params as params
 
 import gym
 from joblib import Parallel, delayed
@@ -16,7 +18,7 @@ import numpy as np
 
 """Hyperparameters"""
 class Settings():
-	env_name="BipedalWalker-v2"
+	env_name="Rabbit-v0"
 	txt_log = "log/" + "/train.txt"
 	policy_path = "log/"+ "/policy/"
 	backend = "multiprocessing"
@@ -26,10 +28,10 @@ class Settings():
 	num_episode = 5
 	max_episode_length=1600
 	batch_mode="mean"
-	state_size = 24
+	state_size = 14
 	action_size = 4
-	action_min = -1.
-	action_max = 1.
+	action_min = -4.
+	action_max = 4.
 	control_kp = 10.
 	control_kd = 1.
 	desired_v_low = 0.
@@ -37,7 +39,7 @@ class Settings():
 	conditions_dim = 1
 	theta_dim = 12
 	nn_units=[20,20,20]
-	nn_activations=["relu", "relu", "passthru", "passthru"]
+	nn_activations=["relu", "relu", "relu", "passthru"]
 	population = 8
 	sigma_init=0.1
 	sigma_decay=0.9999 
@@ -60,31 +62,11 @@ class PID(object):
         self.min = mn
         self.max = mx
 
-        self.int_val = self.last_int_val = self.last_error = 0.
-
-    def reset(self):
-        self.int_val = 0.0
-        self.last_int_val = 0.0
-
-    def step(self, error, sample_time):
-        self.last_int_val = self.int_val
-
-        integral = self.int_val + error * sample_time;
-        derivative = (error - self.last_error) / sample_time;
-
-        y = self.kp * error + self.ki * self.int_val + self.kd * derivative;
-        if np.all(y>self.max):
-            val = self.max
-        elif np.all(y<self.min):
-            val = self.min
-        else:
-            self.int_val = integral
-        val = np.clip(y, self.min, self.max)
-
-        
-        self.last_error = error
-
-        return val
+    def step(self, qd, qdotd, q, qdot):
+    	error_pos = qd - q
+    	error_vel = qdotd - qdot
+    	output = self.kp*error_pos + self.kd*error_vel
+    	return np.clip(output, self.min, self.max)
 
 """The policy defined by theta. Theta is calculated through a NN given desired conditions."""
 class Policy():
@@ -93,7 +75,7 @@ class Policy():
 				 action_size=4,
 				 action_min=-1.,
 				 action_max=1.,
-				 kp=0, kd=0, feq=20.):
+				 kp=200, kd=20, feq=20.):
 		self.theta = theta
 		self.action_size = action_size
 		self.action_min = action_min
@@ -102,10 +84,25 @@ class Policy():
 		self.pid = PID(kp, 0., kd, mn=np.full((action_size,),action_min), 
 								   mx=np.full((action_size,),action_max))
 		
-
 	def get_action(self, state):
-		err = np.zeros(self.action_size,) + np.sum(state)*(np.sum(self.theta)/10000.)
-		action = self.pid.step(err, self.sample_time)
+		pos, vel = state[0:7], state[7:14]
+        tau_right = trajectory.tau_Right(pos,self.theta)
+        tau_left = trajectory.tau_Left(pos,self.theta)
+        if tau_right > 1.0:
+            aux = 1
+        if aux == 0:
+            qd, tau = trajectory.yd_time_RightStance(pos,params.a_rightS,self.theta)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+            qdotd = trajectory.d1yd_time_RightStance(pos,vel,params.a_rightS,self.theta)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
+        else:
+            qd = trajectory.yd_time_LeftStance(pos,params.a_leftS,self.theta)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+            qdotd = trajectory.d1yd_time_LeftStance(pos,vel,params.a_leftS,self.theta)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
+            if tau_left > 1.0:
+                aux = 0
+        q = np.array([pos[3], pos[4], pos[5], pos[6]])    #Take the current position state of the actuated joints and assign them to vector which will be used to compute the error
+        qdot = np.array([vel[3], vel[4], vel[5], vel[6]]) #Take the current velocity state of the actuated joints and assign them to vector which will be used to compute the error   
+
+        action = self.pid.step(qd, qdotd, q, qdot)
+
 		return action
 
 def make_log(txt_log, policy_path):
