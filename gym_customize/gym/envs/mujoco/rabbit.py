@@ -62,6 +62,5 @@ class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.viewer.cam.elevation = -20
 
 
-
     def get_state(self):
         return self.sim.data.qpos, self.sim.data.qvel

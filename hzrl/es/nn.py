@@ -12,7 +12,7 @@ def tanh(x):
 class NeuralNetwork():
 
 	def __init__(self, input_dim=1,
-				 output_dim=20,
+				 output_dim=24,
 				 units=[20,20,20],
 				 activations=["relu", "relu", "passthru", "passthru"]):
 

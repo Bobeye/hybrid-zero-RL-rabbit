@@ -73,29 +73,37 @@ class Policy():
 
 	def __init__(self, theta=None,
 				 action_size=4,
-				 action_min=-1.,
-				 action_max=1.,
+				 action_min=-4.,
+				 action_max=4.,
 				 kp=200, kd=20, feq=20.):
 		self.theta = theta
+		self.make_theta()
 		self.action_size = action_size
 		self.action_min = action_min
 		self.action_max = action_max
 		self.sample_time = 1/feq
 		self.pid = PID(kp, 0., kd, mn=np.full((action_size,),action_min), 
 								   mx=np.full((action_size,),action_max))
+		self.p = np.array([0.2517, -0.2])
+
+	# TODO
+	def make_theta(self):
+		self.a_rightS = self.theta
+		self.a_leftS = 
+
 		
 	def get_action(self, state):
 		pos, vel = state[0:7], state[7:14]
-        tau_right = trajectory.tau_Right(pos,self.theta)
-        tau_left = trajectory.tau_Left(pos,self.theta)
+        tau_right = trajectory.tau_Right(pos,self.p)
+        tau_left = trajectory.tau_Left(pos,self.p)
         if tau_right > 1.0:
             aux = 1
         if aux == 0:
-            qd, tau = trajectory.yd_time_RightStance(pos,params.a_rightS,self.theta)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
-            qdotd = trajectory.d1yd_time_RightStance(pos,vel,params.a_rightS,self.theta)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
+            qd, tau = trajectory.yd_time_RightStance(pos,self.a_rightS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+            qdotd = trajectory.d1yd_time_RightStance(pos,vel,self.a_rightS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
         else:
-            qd = trajectory.yd_time_LeftStance(pos,params.a_leftS,self.theta)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
-            qdotd = trajectory.d1yd_time_LeftStance(pos,vel,params.a_leftS,self.theta)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
+            qd = trajectory.yd_time_LeftStance(pos,self..a_leftS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+            qdotd = trajectory.d1yd_time_LeftStance(pos,vel,self..a_leftS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
             if tau_left > 1.0:
                 aux = 0
         q = np.array([pos[3], pos[4], pos[5], pos[6]])    #Take the current position state of the actuated joints and assign them to vector which will be used to compute the error
@@ -115,8 +123,9 @@ def save_policy(path, solution):
 	with open(path, 'wt') as out:
 		json.dump([np.array(solution).round(4).tolist()], out, sort_keys=True, indent=2, separators=(',', ': '))
 
-def make_env(env_name, seed=np.random.seed(None), render_mode=False):
+def make_env(env_name, seed=np.random.seed(None), render_mode=False, desired_velocity=10):
 	env = gym.make(env_name)
+	# env.assign_desired_vel(desired_vel=10.)
 	env.reset()
 	if render_mode:	
 		env.render("human")
@@ -132,7 +141,7 @@ def simulate(model, solution, settings, desired_velocity):
 	pi = Policy(theta=theta, action_size=settings.action_size, 
 				action_min=settings.action_min, action_max=settings.action_max,
 				kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency)
-	env = make_env(settings.env_name, desired_vel = desired_velocity)
+	env = make_env(settings.env_name, desired_velocity = desired_velocity)
 	
 	total_reward_list = []
 	timesteps = 0
@@ -156,6 +165,8 @@ def simulate(model, solution, settings, desired_velocity):
 			action_list += [action]
 			reward_list += [reward]
 			termination_list += [done]
+			if done:
+				break
 
 		total_reward_list += [np.array([total_reward]).flatten()]
 	state = env.reset()
@@ -202,6 +213,7 @@ if __name__ == "__main__":
 		desired_velocities = np.random.uniform(low=settings.desired_v_low, 
 											   high=settings.desired_v_up, 
 											   size=(settings.population,))
+		# desired_velocities = np.zeros(settings.population,) + 2.
 		result = Parallel(n_jobs=settings.n_jobs, backend=settings.backend)(delayed(simulate)(models[i],solutions[i],settings,desired_velocities[i],) for i in range(len(models)))
 		rewards_list = []
 		timesteps_list = []
