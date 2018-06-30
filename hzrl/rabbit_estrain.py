@@ -38,8 +38,8 @@ class Settings():
 	desired_v_up = 1.5
 	conditions_dim = 1
 	theta_dim = 24
-	nn_units=[20,20,20]
-	nn_activations=["relu", "relu", "relu", "passthru"]
+	nn_units=[16,16]
+	nn_activations=["relu", "relu", "passthru"]
 	population = 8
 	sigma_init=0.1
 	sigma_decay=0.9999 
@@ -99,35 +99,30 @@ class Policy():
 
 	def get_action(self, state):
 		pos, vel = state[0:7], state[7:14]
-		tau_right = trajectory.tau_Right(pos,params.p)
-		tau_left = trajectory.tau_Left(pos,params.p)
+		tau_right = trajectory.tau_Right(pos,self.p)
+		tau_left = trajectory.tau_Left(pos,self.p)	
 		
-		if tau_right > 1.0:
-			settings.aux = 1
-		if settings.aux == 0:
-			qd, tau = trajectory.yd_time_RightStance(pos,params.a_rightS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
-			qdotd = trajectory.d1yd_time_RightStance(pos,vel,params.a_rightS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
-		else:
-			qd = trajectory.yd_time_LeftStance(pos,params.a_leftS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
-			qdotd = trajectory.d1yd_time_LeftStance(pos,vel,params.a_leftS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
-			if tau_left > 1.0:
-				settings.aux = 0		
-
-
-		#tau_right = trajectory.tau_Right(pos,self.p)
-		#tau_left = trajectory.tau_Left(pos,self.p)		
 		# if tau_right > 1.0:
 		# 	settings.aux = 1
 		# if settings.aux == 0:
-		# 	qd, tau = trajectory.yd_time_RightStance(pos,self.a_rightS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
-		# 	qdotd = trajectory.d1yd_time_RightStance(pos,vel,self.a_rightS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
+		# 	qd, tau = trajectory.yd_time_RightStance(pos,params.a_rightS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+		# 	qdotd = trajectory.d1yd_time_RightStance(pos,vel,params.a_rightS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
 		# else:
-		# 	qd = trajectory.yd_time_LeftStance(pos,self.a_leftS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
-		# 	qdotd = trajectory.d1yd_time_LeftStance(pos,vel,self.a_leftS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
+		# 	qd = trajectory.yd_time_LeftStance(pos,params.a_leftS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+		# 	qdotd = trajectory.d1yd_time_LeftStance(pos,vel,params.a_leftS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
 		# 	if tau_left > 1.0:
-		# 		settings.aux = 0
-		
-		
+		# 		settings.aux = 0		
+
+		if tau_right > 1.0:
+			settings.aux = 1
+		if settings.aux == 0:
+			qd, tau = trajectory.yd_time_RightStance(pos,self.a_rightS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+			qdotd = trajectory.d1yd_time_RightStance(pos,vel,self.a_rightS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
+		else:
+			qd = trajectory.yd_time_LeftStance(pos,self.a_leftS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+			qdotd = trajectory.d1yd_time_LeftStance(pos,vel,self.a_leftS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
+			if tau_left > 1.0:
+				settings.aux = 0
 		
 		q = np.array([pos[3], pos[4], pos[5], pos[6]])    #Take the current position state of the actuated joints and assign them to vector which will be used to compute the error
 		qdot = np.array([vel[3], vel[4], vel[5], vel[6]]) #Take the current velocity state of the actuated joints and assign them to vector which will be used to compute the error
