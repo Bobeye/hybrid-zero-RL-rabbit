@@ -6,6 +6,7 @@ from __future__ import division
 
 from es.nn import NeuralNetwork 
 from es.oes import OpenES
+from es.cmaes import CMAES
 import hzd.trajectory as trajectory
 import hzd.params as params
 
@@ -87,7 +88,6 @@ class Policy():
 								   mx=np.full((action_size,),action_max))
 		self.p = np.array([0.2517, -0.2])
 
-	# TODO
 	def make_theta(self):
 		self.a_rightS = self.theta
 		self.a_leftS = np.array([self.theta[2], self.theta[3], self.theta[0], self.theta[1],
@@ -96,6 +96,9 @@ class Policy():
 						self.theta[14], self.theta[15], self.theta[12], self.theta[13],
 						self.theta[18], self.theta[19], self.theta[16], self.theta[17],
 						self.theta[22], self.theta[23], self.theta[20], self.theta[21]])
+
+	def get_action_star(self, state):
+
 
 	def get_action(self, state):
 		pos, vel = state[0:7], state[7:14]
@@ -207,6 +210,7 @@ if __name__ == "__main__":
 					 	  output_dim=settings.theta_dim,
 					 	  units=settings.nn_units,
 					 	  activations=settings.nn_activations)
+	# Adopt OpenAI ES
 	escls = OpenES(model.parameter_count, 
 				   sigma_init=settings.sigma_init, 
 				   sigma_decay=settings.sigma_decay, 
@@ -216,6 +220,12 @@ if __name__ == "__main__":
 				   learning_rate_limit=settings.learning_rate_limit,
 				   popsize=settings.population, 
 				   antithetic=True)
+
+	# # Adopt CMA-ES
+	# escls = CMAES(model.parameter_count,
+	# 			  sigma_init=settings.sigma_init,
+	# 			  popsize=settings.population,
+	# 			  weight_decay=settings.sigma_decay)
 
 	step = 0
 	total_timesteps = 0
