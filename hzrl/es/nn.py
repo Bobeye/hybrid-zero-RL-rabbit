@@ -35,7 +35,7 @@ class NeuralNetwork():
 			unit_list += [u, u]
 		unit_list += [output_dim]
 		self.shapes = []
-		for l in range(self.num_layers):
+		for l in range(self.num_layers+1):
 			self.shapes += [(unit_list[2*l], unit_list[2*l+1])]
 		
 		self.weight = []
@@ -69,3 +69,16 @@ class NeuralNetwork():
 			h = np.matmul(h, w) + b
 			h = self.activations[i](h)
 		return h
+
+# if __name__ == "__main__":
+# 	test = NeuralNetwork(input_dim=2,
+# 				 output_dim=2,
+# 				 units=[5,5],
+# 				 activations=["relu", "relu", "passthru"])
+
+# 	print (test.shapes)
+
+# 	model_params = np.zeros((test.parameter_count,))
+# 	test.set_weights(model_params)
+
+# 	print (test.predict(np.array([1,1])))
