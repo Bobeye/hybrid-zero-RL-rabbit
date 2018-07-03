@@ -25,7 +25,7 @@ class Settings():
 	backend = "multiprocessing"
 	n_jobs = 4
 	frequency = 20.
-	total_threshold = 1e8
+	total_threshold = 100000 #1e8
 	num_episode = 5
 	max_episode_length=1600
 	batch_mode="mean"
@@ -33,14 +33,14 @@ class Settings():
 	action_size = 4
 	action_min = -4.
 	action_max = 4.
-	control_kp = 10.
-	control_kd = 1.
+	control_kp = 200.
+	control_kd = 20.
 	desired_v_low = 0.5
 	desired_v_up = 1.5
 	conditions_dim = 1
 	theta_dim = 24
-	nn_units=[20,20,20]
-	nn_activations=["relu", "relu", "relu", "passthru"]
+	nn_units=[16,16]
+	nn_activations=["relu", "relu", "passthru"]
 	population = 8
 	sigma_init=0.1
 	sigma_decay=0.9999 
@@ -72,7 +72,6 @@ class PID(object):
 
 """The policy defined by theta. Theta is calculated through a NN given desired conditions."""
 class Policy():
-
 	def __init__(self, theta=None,
 				 action_size=4,
 				 action_min=-4.,
@@ -98,12 +97,12 @@ class Policy():
 						self.theta[22], self.theta[23], self.theta[20], self.theta[21]])
 
 	def get_action_star(self, state):
-
+		pass
 
 	def get_action(self, state):
 		pos, vel = state[0:7], state[7:14]
-		tau_right = trajectory.tau_Right(pos,params.p)
-		tau_left = trajectory.tau_Left(pos,params.p)
+		tau_right = trajectory.tau_Right(pos,self.p)
+		tau_left = trajectory.tau_Left(pos,self.p)	
 		
 		if tau_right > 1.0:
 			settings.aux = 1
@@ -116,9 +115,6 @@ class Policy():
 			if tau_left > 1.0:
 				settings.aux = 0		
 
-
-		#tau_right = trajectory.tau_Right(pos,self.p)
-		#tau_left = trajectory.tau_Left(pos,self.p)		
 		# if tau_right > 1.0:
 		# 	settings.aux = 1
 		# if settings.aux == 0:
@@ -129,8 +125,6 @@ class Policy():
 		# 	qdotd = trajectory.d1yd_time_LeftStance(pos,vel,self.a_leftS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
 		# 	if tau_left > 1.0:
 		# 		settings.aux = 0
-		
-		
 		
 		q = np.array([pos[3], pos[4], pos[5], pos[6]])    #Take the current position state of the actuated joints and assign them to vector which will be used to compute the error
 		qdot = np.array([vel[3], vel[4], vel[5], vel[6]]) #Take the current velocity state of the actuated joints and assign them to vector which will be used to compute the error
@@ -224,7 +218,7 @@ if __name__ == "__main__":
 				   learning_rate_decay=settings.learning_rate_decay, 
 				   learning_rate_limit=settings.learning_rate_limit,
 				   popsize=settings.population, 
-				   antithetic=True)
+				   antithetic=False)
 
 	# # Adopt CMA-ES
 	# escls = CMAES(model.parameter_count,
@@ -271,4 +265,6 @@ if __name__ == "__main__":
 		save_policy(settings.policy_path+str(step)+".json", best_solution)
 
 		step += 1
- 
+
+		print(total_timesteps)
+		#print(best_solution)
