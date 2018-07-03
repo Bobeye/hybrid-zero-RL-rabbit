@@ -1,5 +1,7 @@
 import numpy as np 
 
+
+
 class CMAES:
 	'''CMA-ES wrapper.'''
 	def __init__(self, num_params,      # number of model parameters
@@ -57,3 +59,27 @@ class CMAES:
 		return (self.es.mean, -r[1], -r[1], r[6])
 		# return (r[0], -r[1], -r[1], r[6])
 		# return (self.best_param, self.best_reward, self.curr_best_reward, self.sigma)
+
+def compute_ranks(x):
+	"""
+	Returns ranks in [0, len(x))
+	Note: This is different from scipy.stats.rankdata, which returns ranks in [1, len(x)].
+	(https://github.com/openai/evolution-strategies-starter/blob/master/es_distributed/es.py)
+	"""
+	assert x.ndim == 1
+	ranks = np.empty(len(x), dtype=int)
+	ranks[x.argsort()] = np.arange(len(x))
+	return ranks
+
+def compute_centered_ranks(x):
+	"""
+	https://github.com/openai/evolution-strategies-starter/blob/master/es_distributed/es.py
+	"""
+	y = compute_ranks(x.ravel()).reshape(x.shape).astype(np.float32)
+	y /= (x.size - 1)
+	y -= .5
+	return y
+
+def compute_weight_decay(weight_decay, model_param_list):
+	model_param_grid = np.array(model_param_list)
+	return - weight_decay * np.mean(model_param_grid * model_param_grid, axis=1)
