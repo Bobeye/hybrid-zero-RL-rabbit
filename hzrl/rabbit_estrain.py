@@ -25,9 +25,9 @@ class Settings():
 	backend = "multiprocessing"
 	n_jobs = 4
 	frequency = 20.
-	total_threshold = 100000 #1e8
+	total_threshold = 1e8
 	num_episode = 5
-	max_episode_length=1600
+	max_episode_length=1000
 	batch_mode="mean"
 	state_size = 14
 	action_size = 4
@@ -35,12 +35,12 @@ class Settings():
 	action_max = 4.
 	control_kp = 200.
 	control_kd = 20.
-	desired_v_low = 0.5
-	desired_v_up = 1.5
+	desired_v_low = 1
+	desired_v_up = 1
 	conditions_dim = 1
 	theta_dim = 24
 	nn_units=[16,16]
-	nn_activations=["relu", "relu", "passthru"]
+	nn_activations=["relu", "relu", "tanh"]
 	population = 8
 	sigma_init=0.1
 	sigma_decay=0.9999 
@@ -49,6 +49,7 @@ class Settings():
 	learning_rate_decay=0.9999 
 	learning_rate_limit=1e-6
 	aux = 0
+	theta_upbnd = 3*np.pi/2
 	def __init__(self):
 		pass
 settings = Settings()
@@ -104,27 +105,27 @@ class Policy():
 		tau_right = trajectory.tau_Right(pos,self.p)
 		tau_left = trajectory.tau_Left(pos,self.p)	
 		
-		if tau_right > 1.0:
-			settings.aux = 1
-		if settings.aux == 0:
-			qd, tau = trajectory.yd_time_RightStance(pos,params.a_rightS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
-			qdotd = trajectory.d1yd_time_RightStance(pos,vel,params.a_rightS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
-		else:
-			qd = trajectory.yd_time_LeftStance(pos,params.a_leftS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
-			qdotd = trajectory.d1yd_time_LeftStance(pos,vel,params.a_leftS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
-			if tau_left > 1.0:
-				settings.aux = 0		
-
 		# if tau_right > 1.0:
 		# 	settings.aux = 1
 		# if settings.aux == 0:
-		# 	qd, tau = trajectory.yd_time_RightStance(pos,self.a_rightS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
-		# 	qdotd = trajectory.d1yd_time_RightStance(pos,vel,self.a_rightS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
+		# 	qd, tau = trajectory.yd_time_RightStance(pos,params.a_rightS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+		# 	qdotd = trajectory.d1yd_time_RightStance(pos,vel,params.a_rightS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
 		# else:
-		# 	qd = trajectory.yd_time_LeftStance(pos,self.a_leftS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
-		# 	qdotd = trajectory.d1yd_time_LeftStance(pos,vel,self.a_leftS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
+		# 	qd = trajectory.yd_time_LeftStance(pos,params.a_leftS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+		# 	qdotd = trajectory.d1yd_time_LeftStance(pos,vel,params.a_leftS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
 		# 	if tau_left > 1.0:
-		# 		settings.aux = 0
+		# 		settings.aux = 0		
+
+		if tau_right > 1.0:
+			settings.aux = 1
+		if settings.aux == 0:
+			qd, tau = trajectory.yd_time_RightStance(pos,self.a_rightS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+			qdotd = trajectory.d1yd_time_RightStance(pos,vel,self.a_rightS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
+		else:
+			qd = trajectory.yd_time_LeftStance(pos,self.a_leftS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+			qdotd = trajectory.d1yd_time_LeftStance(pos,vel,self.a_leftS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
+			if tau_left > 1.0:
+				settings.aux = 0
 		
 		q = np.array([pos[3], pos[4], pos[5], pos[6]])    #Take the current position state of the actuated joints and assign them to vector which will be used to compute the error
 		qdot = np.array([vel[3], vel[4], vel[5], vel[6]]) #Take the current velocity state of the actuated joints and assign them to vector which will be used to compute the error
@@ -156,8 +157,18 @@ def simulate(model, solution, settings, desired_velocity):
 	
 	model.set_weights(solution)
 	theta = model.predict(desired_velocity)
+	# print(theta)
+	# theta1 = np.tanh(theta)
+	# print(theta1)
+	# theta2 = sigmoid(theta)
+	# print(theta2)
+	theta = settings.theta_upbnd*(0.5*np.tanh(theta) + 0.5)
+	# print(theta3)
+
+	#Debugging theta
 	# print("DEBUG THETA")
 	# print(theta)
+	
 	pi = Policy(theta=theta, action_size=settings.action_size, 
 				action_min=settings.action_min, action_max=settings.action_max,
 				kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency)
@@ -179,6 +190,8 @@ def simulate(model, solution, settings, desired_velocity):
 			timesteps += 1
 			action = pi.get_action(state)
 			observation, reward, done, info = env.step(action)
+			######### ADD NEW REWARD using penalization distance between points
+
 			state = observation
 			total_reward += reward
 			state_list += [state.flatten()]
@@ -196,10 +209,26 @@ def simulate(model, solution, settings, desired_velocity):
 		rewards = np.min(total_rewards)
 	else:
 		rewards = np.mean(total_rewards)
-
 	return [rewards, timesteps]
 
 
+def load_model(filename):
+	with open(filename) as f:       
+		data = json.load(f)
+
+	print('loading file %s' % (filename))
+	model_params = np.array(data[0]) 
+	return model_params
+
+def get_theta(model, model_params):
+	model.set_weights(model_params)
+	best_theta = model.predict(1)		#desired_velocity = 1
+	best_theta = settings.theta_upbnd*(0.5*np.tanh(best_theta) + 0.5)
+	return best_theta
+ # SIGMOID
+
+def sigmoid(x):
+	return 1 / (1 + np.exp(-x))
 
 if __name__ == "__main__":
 
@@ -210,27 +239,28 @@ if __name__ == "__main__":
 					 	  units=settings.nn_units,
 					 	  activations=settings.nn_activations)
 	# Adopt OpenAI ES
-	escls = OpenES(model.parameter_count, 
-				   sigma_init=settings.sigma_init, 
-				   sigma_decay=settings.sigma_decay, 
-				   sigma_limit=settings.sigma_limit, 
-				   learning_rate=settings.learning_rate,
-				   learning_rate_decay=settings.learning_rate_decay, 
-				   learning_rate_limit=settings.learning_rate_limit,
-				   popsize=settings.population, 
-				   antithetic=False)
+	# escls = OpenES(model.parameter_count, 
+	# 			   sigma_init=settings.sigma_init, 
+	# 			   sigma_decay=settings.sigma_decay, 
+	# 			   sigma_limit=settings.sigma_limit, 
+	# 			   learning_rate=settings.learning_rate,
+	# 			   learning_rate_decay=settings.learning_rate_decay, 
+	# 			   learning_rate_limit=settings.learning_rate_limit,
+	# 			   popsize=settings.population, 
+	# 			   antithetic=True)
 
 	# # Adopt CMA-ES
-	# escls = CMAES(model.parameter_count,
-	# 			  sigma_init=settings.sigma_init,
-	# 			  popsize=settings.population,
-	# 			  weight_decay=settings.sigma_decay)
+	escls = CMAES(model.parameter_count,
+				  sigma_init=settings.sigma_init,
+				  popsize=settings.population,
+				  weight_decay=settings.sigma_decay)
 
 	step = 0
 	total_timesteps = 0
 	while total_timesteps < settings.total_threshold:
 		print("======== step {} ========" .format(step)) ###DEBUG MESSAGE	
 		solutions = escls.ask()
+		print(solutions.shape)
 		models = []
 		for _ in range(settings.population):
 			m = NeuralNetwork(input_dim=settings.conditions_dim,
@@ -238,9 +268,13 @@ if __name__ == "__main__":
 					 	  	  units=settings.nn_units,
 					 	  	  activations=settings.nn_activations)
 			models += [m]
+		#print (models)	
 		desired_velocities = np.random.uniform(low=settings.desired_v_low, 
 											   high=settings.desired_v_up, 
 											   size=(settings.population,))
+		
+		print(desired_velocities)
+
 		# desired_velocities = np.zeros(settings.population,) + 2.
 		result = Parallel(n_jobs=settings.n_jobs, backend=settings.backend)(delayed(simulate)(models[i],solutions[i],settings,desired_velocities[i],) for i in range(len(models)))
 		rewards_list = []
@@ -249,7 +283,7 @@ if __name__ == "__main__":
 			rewards_list += [r[0]]
 			timesteps_list += [r[1]]
 		rewards = np.array(rewards_list)
-		total_timesteps = np.sum(np.array(timesteps_list))
+		total_timesteps += np.sum(np.array(timesteps_list))
 		escls.tell(rewards, solutions)
 
 		log_string = (" ave_R ", int(np.mean(np.array(rewards))*100)/100., 
@@ -260,11 +294,15 @@ if __name__ == "__main__":
 		with open(settings.txt_log, "a") as text_file:
 			text_file.write(str(log_string) + "\n")
 
-
 		best_solution = escls.best_param()
 		save_policy(settings.policy_path+str(step)+".json", best_solution)
 
-		step += 1
+		print("total_timesteps = {}" .format(total_timesteps))
 
-		print(total_timesteps)
-		#print(best_solution)
+
+		#To obtain the value of theta
+		model_params = load_model(settings.policy_path+str(step)+".json")
+		theta_best = get_theta(models[0], model_params)
+		print(theta_best)
+	
+		step += 1

@@ -63,7 +63,13 @@ env.reset()
 action = np.array([0.0, 0.0, 0.0, 0.0])
 
 a_rightS = params.a_rightS
-a_leftS = params.a_leftS
+a_leftS = np.array([a_rightS[2], a_rightS[3], a_rightS[0], a_rightS[1],
+                a_rightS[6], a_rightS[7], a_rightS[4], a_rightS[5],
+                a_rightS[10], a_rightS[11], a_rightS[8], a_rightS[9],
+                a_rightS[14], a_rightS[15], a_rightS[12], a_rightS[13],
+                a_rightS[18], a_rightS[19], a_rightS[16], a_rightS[17],
+                a_rightS[22], a_rightS[23], a_rightS[20], a_rightS[21]])
+
 p = params.p
 Kp, Kd = pid_init() #Initialize PID parameters for njoints = 4 (4 actuators)
 
@@ -85,6 +91,9 @@ for k in range(iter):
         speed[i] = vel[0]
         tau_right = trajectory.tau_Right(pos,p)
         tau_left = trajectory.tau_Left(pos,p)
+
+
+
 
         if tau_right > 1.0:
             aux = 1
@@ -114,6 +123,7 @@ for k in range(iter):
         #action = np.array([-1, -1, -1, -1])
         #action = np.array([1, 1, 1, 1])
         action = np.clip(action,-4,4)
+        print(action)
         observation, _reward, done, _info = env.step(action)
         #print(observation)
 
