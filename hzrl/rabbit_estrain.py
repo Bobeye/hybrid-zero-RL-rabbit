@@ -23,7 +23,7 @@ class Settings():
 	txt_log = "log/" + "/train.txt"
 	policy_path = "log/"+ "/policy/"
 	backend = "multiprocessing"
-	n_jobs = 4
+	n_jobs = 8
 	frequency = 20.
 	total_threshold = 1e8
 	num_episode = 5
@@ -33,15 +33,15 @@ class Settings():
 	action_size = 4
 	action_min = -4.
 	action_max = 4.
-	control_kp = 200.
-	control_kd = 20.
-	desired_v_low = 1
+	control_kp = 120.
+	control_kd = 2.
+	desired_v_low = 0.6
 	desired_v_up = 1
-	conditions_dim = 1
+	conditions_dim = 2
 	theta_dim = 24
 	nn_units=[16,16]
 	nn_activations=["relu", "relu", "tanh"]
-	population = 8
+	population = 24
 	sigma_init=0.1
 	sigma_decay=0.9999 
 	sigma_limit=1e-4
@@ -49,7 +49,10 @@ class Settings():
 	learning_rate_decay=0.9999 
 	learning_rate_limit=1e-6
 	aux = 0
-	theta_upbnd = 3*np.pi/2
+	upplim_jthigh = 250*(np.pi/180)
+	lowlim_jthigh = 90*(np.pi/180)
+	upplim_jleg = 90*(np.pi/180)
+	lowlim_jleg = 0*(np.pi/180)
 	def __init__(self):
 		pass
 settings = Settings()
@@ -77,7 +80,7 @@ class Policy():
 				 action_size=4,
 				 action_min=-4.,
 				 action_max=4.,
-				 kp=200, kd=20, feq=20.):
+				 kp=50, kd=1, feq=20.):
 		self.theta = theta
 		self.make_theta()
 		self.action_size = action_size
@@ -102,8 +105,8 @@ class Policy():
 
 	def get_action(self, state):
 		pos, vel = state[0:7], state[7:14]
-		tau_right = trajectory.tau_Right(pos,self.p)
-		tau_left = trajectory.tau_Left(pos,self.p)	
+		tau_right = np.clip(trajectory.tau_Right(pos,self.p), 0, 1.1)
+		tau_left = np.clip(trajectory.tau_Left(pos,self.p), 0, 1.1)	
 		
 		# if tau_right > 1.0:
 		# 	settings.aux = 1
@@ -115,6 +118,9 @@ class Policy():
 		# 	qdotd = trajectory.d1yd_time_LeftStance(pos,vel,params.a_leftS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
 		# 	if tau_left > 1.0:
 		# 		settings.aux = 0		
+
+		#print ([tau_right, tau_left])
+		
 
 		if tau_right > 1.0:
 			settings.aux = 1
@@ -137,15 +143,15 @@ def make_log(txt_log, policy_path):
 	if not os.path.exists(policy_path):
 		os.makedirs(policy_path)
 	with open(txt_log, "w") as text_file:
-		text_file.write("blahblah"+"\n")
+		text_file.write("Summary of the training: "+"\n")
 
 def save_policy(path, solution):
 	with open(path, 'wt') as out:
 		json.dump([np.array(solution).round(4).tolist()], out, sort_keys=True, indent=2, separators=(',', ': '))
 
-def make_env(env_name, seed=np.random.seed(None), render_mode=False, desired_velocity=1):
+def make_env(env_name, seed=np.random.seed(None), render_mode=False, desired_velocity=None):
 	env = gym.make(env_name)
-	env.assign_desired_vel(desired_vel=1)
+	env.assign_desired_vel(desired_velocity)
 	env.reset()
 	if render_mode:	
 		env.render("human")
@@ -153,26 +159,46 @@ def make_env(env_name, seed=np.random.seed(None), render_mode=False, desired_vel
 	#	env.seed(seed)
 	return env
 
-def simulate(model, solution, settings, desired_velocity):
-	
-	model.set_weights(solution)
-	theta = model.predict(desired_velocity)
-	# print(theta)
-	# theta1 = np.tanh(theta)
-	# print(theta1)
-	# theta2 = sigmoid(theta)
-	# print(theta2)
-	theta = settings.theta_upbnd*(0.5*np.tanh(theta) + 0.5)
-	# print(theta3)
+def reward_hzd(theta):
+	rew_j1j3_0 = 10*(theta[0]-theta[22])**2	#penalization for not meeting limit cycle condition at tau=0 for joint 1 and 3
+	rew_j1j3_1 = 10*(theta[2]-theta[20])**2	#penalization for not meeting limit cycle condition at tau=1 for joint 1 and 3
+	rew_j2j4_0 = 10*(theta[1]-theta[23])**2	#penalization for not meeting limit cycle condition at tau=0 for joint 2 and 4
+	rew_j2j4_1 = 10*(theta[3]-theta[21])**2	#penalization for not meeting limit cycle condition at tau=1 for joint 2 and 4
+	return - rew_j1j3_0 - rew_j1j3_1 - rew_j2j4_0 - rew_j2j4_1
 
-	#Debugging theta
-	# print("DEBUG THETA")
-	# print(theta)
+def bound_theta(theta):		#Add offset and restrict to range corresponding to each joint
+	theta_thighR = np.array([theta[0], theta[4], theta[8], theta[12], theta[16], theta[20]])
+	theta_legR = np.array([theta[1], theta[5], theta[9], theta[13], theta[17], theta[21]])
+	theta_thighL = np.array([theta[2], theta[6], theta[10], theta[14], theta[18], theta[22]])
+	theta_legL = np.array([theta[3], theta[7], theta[11], theta[15], theta[19], theta[23]])
+
+	theta_thighR = (((settings.upplim_jthigh - settings.lowlim_jthigh)/2)*theta_thighR) + ((settings.upplim_jthigh + settings.lowlim_jthigh)/2)
+	theta_legR = settings.upplim_jleg/2*(theta_legR + 1)
+	theta_thighL = (((settings.upplim_jthigh - settings.lowlim_jthigh)/2)*theta_thighL) + ((settings.upplim_jthigh + settings.lowlim_jthigh)/2)
+	theta_legL = settings.upplim_jleg/2*(theta_legL + 1)
+
+	[theta[0], theta[4], theta[8], theta[12], theta[16], theta[20]] = theta_thighR
+	[theta[1], theta[5], theta[9], theta[13], theta[17], theta[21]] = theta_legR
+	[theta[2], theta[6], theta[10], theta[14], theta[18], theta[22]] = theta_thighL
+	[theta[3], theta[7], theta[11], theta[15], theta[19], theta[23]] = theta_legL
+
+	return theta
+
+def simulate(model, solution, settings, desired_velocity, render_mode):
+	
+	model.set_weights(solution) #FIX FOR EACH PAIR model-solution
+	current_speed = 0. 
+	theta = model.predict(np.array([desired_velocity, current_speed]))
+	theta = bound_theta(theta)
+	#theta = settings.theta_upbnd*sigmoid(theta)	
+
+	print(theta)	
 	
 	pi = Policy(theta=theta, action_size=settings.action_size, 
 				action_min=settings.action_min, action_max=settings.action_max,
 				kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency)
-	env = make_env(settings.env_name, desired_velocity = desired_velocity)
+				
+	env = make_env(settings.env_name, render_mode=render_mode, desired_velocity = desired_velocity)
 	
 	total_reward_list = []
 	timesteps = 0
@@ -180,17 +206,41 @@ def simulate(model, solution, settings, desired_velocity):
 	action_list = []
 	reward_list = []
 	termination_list = []
+
+	last_speed = None
+
 	for episode in range(settings.num_episode):	
+		# print (episode)
 		state = env.reset()
+
 		if state is None:
 			state = np.zeros(settings.state_size)
-		state = state
 		total_reward = 0
+
 		for t in range(settings.max_episode_length):
+			
+			#PREDICT THETA EVERY EPISODE FOR DIFFERENT VELOCITIES TO DO THE TRAINING
+			current_speed = state[8]	#current velocity of hip
+			if last_speed is None or (current_speed - last_speed) < 1e-2: 
+				theta = model.predict(np.array([desired_velocity, current_speed]))
+				theta = bound_theta(theta)
+				#theta = settings.theta_upbnd*sigmoid(theta)	
+				# print(theta)
+				last_speed = current_speed	
+			# print (current_speed)
+			pi = Policy(theta=theta, action_size=settings.action_size, 
+						action_min=settings.action_min, action_max=settings.action_max,
+						kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency)
+
+
 			timesteps += 1
 			action = pi.get_action(state)
 			observation, reward, done, info = env.step(action)
-			######### ADD NEW REWARD using penalization distance between points
+			if render_mode:
+				env.render("human")
+			######### ADD HERE NEW REWARD using penalization distance between points!!
+			extra_reward = reward_hzd(theta)
+			reward += extra_reward
 
 			state = observation
 			total_reward += reward
@@ -209,24 +259,13 @@ def simulate(model, solution, settings, desired_velocity):
 		rewards = np.min(total_rewards)
 	else:
 		rewards = np.mean(total_rewards)
+	# if render_mode:
+	# 	env.close()
+	
 	return [rewards, timesteps]
 
 
-def load_model(filename):
-	with open(filename) as f:       
-		data = json.load(f)
-
-	print('loading file %s' % (filename))
-	model_params = np.array(data[0]) 
-	return model_params
-
-def get_theta(model, model_params):
-	model.set_weights(model_params)
-	best_theta = model.predict(1)		#desired_velocity = 1
-	best_theta = settings.theta_upbnd*(0.5*np.tanh(best_theta) + 0.5)
-	return best_theta
- # SIGMOID
-
+ # SIGMOID``
 def sigmoid(x):
 	return 1 / (1 + np.exp(-x))
 
@@ -238,7 +277,7 @@ if __name__ == "__main__":
 					 	  output_dim=settings.theta_dim,
 					 	  units=settings.nn_units,
 					 	  activations=settings.nn_activations)
-	# Adopt OpenAI ES
+	# # Adopt OpenAI ES
 	# escls = OpenES(model.parameter_count, 
 	# 			   sigma_init=settings.sigma_init, 
 	# 			   sigma_decay=settings.sigma_decay, 
@@ -249,7 +288,7 @@ if __name__ == "__main__":
 	# 			   popsize=settings.population, 
 	# 			   antithetic=True)
 
-	# # Adopt CMA-ES
+	# Adopt CMA-ES
 	escls = CMAES(model.parameter_count,
 				  sigma_init=settings.sigma_init,
 				  popsize=settings.population,
@@ -260,7 +299,7 @@ if __name__ == "__main__":
 	while total_timesteps < settings.total_threshold:
 		print("======== step {} ========" .format(step)) ###DEBUG MESSAGE	
 		solutions = escls.ask()
-		print(solutions.shape)
+		#print(solutions.shape)
 		models = []
 		for _ in range(settings.population):
 			m = NeuralNetwork(input_dim=settings.conditions_dim,
@@ -273,10 +312,12 @@ if __name__ == "__main__":
 											   high=settings.desired_v_up, 
 											   size=(settings.population,))
 		
-		print(desired_velocities)
+		#print(desired_velocities)
 
 		# desired_velocities = np.zeros(settings.population,) + 2.
-		result = Parallel(n_jobs=settings.n_jobs, backend=settings.backend)(delayed(simulate)(models[i],solutions[i],settings,desired_velocities[i],) for i in range(len(models)))
+		render_mode = False
+		result = Parallel(n_jobs=settings.n_jobs, backend=settings.backend)(delayed(simulate)(models[i],solutions[i],settings,desired_velocities[i],render_mode,) for i in range(len(models)))
+
 		rewards_list = []
 		timesteps_list = []
 		for r in result:
@@ -297,12 +338,6 @@ if __name__ == "__main__":
 		best_solution = escls.best_param()
 		save_policy(settings.policy_path+str(step)+".json", best_solution)
 
-		print("total_timesteps = {}" .format(total_timesteps))
-
-
-		#To obtain the value of theta
-		model_params = load_model(settings.policy_path+str(step)+".json")
-		theta_best = get_theta(models[0], model_params)
-		print(theta_best)
+		# print("total_timesteps = {}" .format(total_timesteps))
 	
 		step += 1
