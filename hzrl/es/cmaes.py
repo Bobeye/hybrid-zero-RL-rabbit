@@ -15,7 +15,6 @@ class CMAES:
 		self.weight_decay = weight_decay
 		self.solutions = None
 
-		self.best_param = np.zeros(self.num_params)
 		self.best_reward = None 
 		self.current_param = np.zeros(self.num_params)
 		self.curr_best_reward = None

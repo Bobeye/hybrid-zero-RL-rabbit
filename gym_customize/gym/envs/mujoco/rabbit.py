@@ -4,6 +4,7 @@ from gym.envs.mujoco import mujoco_env
 
 class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
+        self.freeze = 0
         mujoco_env.MujocoEnv.__init__(self, 'rabbit_new.xml', 1)
         utils.EzPickle.__init__(self)
         self.count = 0
@@ -15,33 +16,62 @@ class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
         posafter, height, ang = self.sim.data.qpos[0:3]
         alive_bonus = 1.0
-        velocity = (posafter - posbefore) / self.dt
+        # velocity = (posafter - posbefore) / self.dt
+        velocity = self.sim.data.qvel[0]    #hip velocity
+        # print("vel_1{}",velocity)
+        # print("vel_2{}",velocity2)
         if velocity < 0:
             velocity_reward = 0.
         elif velocity > self.desired_vel:
-            velocity_reward = 1
+            velocity_reward = 1        
         else:
-            velocity_reward = (self.desired_vel - velocity) / self.desired_vel
-        action_reward = -1e-3 * np.sum(a**2)
-        height_reward = height
-        reward = alive_bonus + velocity_reward + height_reward + action_reward
+            velocity_reward = 10*((self.desired_vel - velocity) / self.desired_vel)
+            
+        action_reward = -1e-2 * np.sum(a**2)
+        height_reward = 1*height
+        displacement_reward  = 20*(posafter)
+
+        # print("vel_reward = {}" .format(velocity_reward))
+        # print("height_reward = {}" .format(height_reward))
+        # print("displ_reward = {}" .format(displacement_reward))
+        # print("vel_reward = {}" .format(velocity_reward))
+
+        reward = alive_bonus + 2*velocity_reward + 0.1*height_reward + action_reward + displacement_reward
+        print (alive_bonus , velocity_reward , height_reward , action_reward , displacement_reward)
+
+        #ADD  COEFFICIENTS to set weigth importance to each reward
+
         # print("heigth = {}" .format(height))
         # print("ang = {}" .format(ang))
         # print("velocity = {}" .format(velocity))
         # print("reward = {}" .format(reward))
-
         done = False
         s = self.state_vector()
-        #print(s)
         if not np.isfinite(s).all():
             done = True
+            reward -= 10
             print("done 1")
-        if height < 0.3:
+        if height < 0.6:
             done = True
+            reward -= 20
             print("done 2")
-        if abs(ang) > 1.5:
+        #if ang < 0 or ang > 1:
+        if abs(ang) > 1:    
             done = True
+            reward -= 10
             print("done 3")
+
+        # TODO: detecting stuck:
+        if abs(velocity) <= 1e-3:
+            self.freeze += 1
+        else:
+            self.freeze = 0
+        
+        if self.freeze > 100:
+            done = True
+            print("done 4")
+            self.freeze = 0
+
 
         ob = self._get_obs()
         return ob, reward, done, {}
@@ -55,8 +85,10 @@ class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def reset_model(self):
         init_pos = np.array([-0.2000, 0.7546, 0.1675, 2.4948, 0.4405, 3.1894, 0.2132])
         init_vel = np.array([0.7743, 0.2891, 0.3796, 1.1377, -0.9273, -0.1285, 1.6298])
-        qpos = init_pos + self.np_random.uniform(low=-.005, high=.005, size=self.model.nq)
-        qvel = init_vel + self.np_random.uniform(low=-.005, high=.005, size=self.model.nv)
+        #qpos = init_pos + self.np_random.uniform(low=-.005, high=.005, size=self.model.nq)
+        #qvel = init_vel + self.np_random.uniform(low=-.005, high=.005, size=self.model.nv)
+        qpos = init_pos
+        qvel = init_vel
         self.set_state(qpos, qvel)
         return self._get_obs()
 

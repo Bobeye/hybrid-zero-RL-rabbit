@@ -10,28 +10,28 @@ import trajectory
 
 
 def init_plot():
-    tau_R = open("hzdynamics/plots/tauR_data.txt","w+")     #Create text files to save the data o
-    tau_L = open("hzdynamics/plots/tauL_data.txt","w+")
-    j1 = open("hzdynamics/plots/j1_data.txt","w+")
-    j2 = open("hzdynamics/plots/j2_data.txt","w+")
-    j3 = open("hzdynamics/plots/j3_data.txt","w+")
-    j4 = open("hzdynamics/plots/j4_data.txt","w+")
-    j1d = open("hzdynamics/plots/j1d_data.txt","w+")
-    j2d = open("hzdynamics/plots/j2d_data.txt","w+")
-    j3d = open("hzdynamics/plots/j3d_data.txt","w+")
-    j4d = open("hzdynamics/plots/j4d_data.txt","w+")
+    tau_R = open("plots/tauR_data.txt","w+")     #Create text files to save the data o
+    tau_L = open("plots/tauL_data.txt","w+")
+    j1 = open("plots/j1_data.txt","w+")
+    j2 = open("plots/j2_data.txt","w+")
+    j3 = open("plots/j3_data.txt","w+")
+    j4 = open("plots/j4_data.txt","w+")
+    j1d = open("plots/j1d_data.txt","w+")
+    j2d = open("plots/j2d_data.txt","w+")
+    j3d = open("plots/j3d_data.txt","w+")
+    j4d = open("plots/j4d_data.txt","w+")
 
 def save_plot(tau_right, tau_left, qd, qdotd):
-    tau_R = open("hzdynamics/plots/tauR_data.txt","a")     #Create text files to save the data o
-    tau_L = open("hzdynamics/plots/tauL_data.txt","a")
-    j1 = open("hzdynamics/plots/j1_data.txt","a")
-    j2 = open("hzdynamics/plots/j2_data.txt","a")
-    j3 = open("hzdynamics/plots/j3_data.txt","a")
-    j4 = open("hzdynamics/plots/j4_data.txt","a")
-    j1d = open("hzdynamics/plots/j1d_data.txt","a")
-    j2d = open("hzdynamics/plots/j2d_data.txt","a")
-    j3d = open("hzdynamics/plots/j3d_data.txt","a")
-    j4d = open("hzdynamics/plots/j4d_data.txt","a")
+    tau_R = open("plots/tauR_data.txt","a")     #Create text files to save the data o
+    tau_L = open("plots/tauL_data.txt","a")
+    j1 = open("plots/j1_data.txt","a")
+    j2 = open("plots/j2_data.txt","a")
+    j3 = open("plots/j3_data.txt","a")
+    j4 = open("plots/j4_data.txt","a")
+    j1d = open("plots/j1d_data.txt","a")
+    j2d = open("plots/j2d_data.txt","a")
+    j3d = open("plots/j3d_data.txt","a")
+    j4d = open("plots/j4d_data.txt","a")
 
     tau_R.write("%.2f\r\n" %(tau_right))
     tau_L.write("%.2f\r\n" %(tau_left))
@@ -45,8 +45,8 @@ def save_plot(tau_right, tau_left, qd, qdotd):
     j4d.write("%.2f\r\n" %(qdotd[3]))
 
 def pid_init():
-    Kp = 200
-    Kd = 20
+    Kp = 120
+    Kd = 2
     return Kp, Kd
 
 def controller_update(qd, qdotd, q, qdot, Kp, Kd):
@@ -64,6 +64,7 @@ action = np.array([0.0, 0.0, 0.0, 0.0])
 
 a_rightS = params.a_rightS
 a_leftS = params.a_leftS
+
 p = params.p
 Kp, Kd = pid_init() #Initialize PID parameters for njoints = 4 (4 actuators)
 
@@ -72,19 +73,23 @@ for i in range(1000):
    # env.render()
 
 aux = 0
+bnd_ctrl_act = 4
 
 init_plot()
 
-iter = 10000
+iter = 5
 for k in range(iter):
     start_time_iter = time.time()
-    speed = np.zeros(2000)
+    speed = np.zeros(200)
 
-    for i in range(2000):
+    for i in range(200):
         pos, vel = env.get_state()
         speed[i] = vel[0]
-        tau_right = trajectory.tau_Right(pos,p)
-        tau_left = trajectory.tau_Left(pos,p)
+        # tau_right = trajectory.tau_Right(pos,p)
+        # tau_left = trajectory.tau_Left(pos,p)
+
+        tau_right = np.clip(trajectory.tau_Right(pos,p), 0, 1.05)
+        tau_left = np.clip(trajectory.tau_Left(pos,p), 0, 1.05)	
 
         if tau_right > 1.0:
             aux = 1
@@ -113,7 +118,8 @@ for k in range(iter):
         action = controller_update(qd, qdotd, q, qdot, Kp, Kd)
         #action = np.array([-1, -1, -1, -1])
         #action = np.array([1, 1, 1, 1])
-        action = np.clip(action,-4,4)
+        action = np.clip(action,-bnd_ctrl_act,bnd_ctrl_act)
+        #print(action)
         observation, _reward, done, _info = env.step(action)
         #print(observation)
 
@@ -127,7 +133,7 @@ for k in range(iter):
 
     aver_speed = np.mean(speed)
     print(aver_speed)
-    break
+    #break
 
     # elapsed_time_iter = time.time() - start_time_iter
     # print("+++++ITERATION {} +++++++" .format(k))    
