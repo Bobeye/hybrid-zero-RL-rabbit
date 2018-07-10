@@ -38,7 +38,7 @@ class Settings():
 	desired_v_low = 0.6
 	desired_v_up = 1
 	conditions_dim = 2
-	theta_dim = 24
+	theta_dim = 20
 	nn_units=[16,16]
 	nn_activations=["relu", "relu", "tanh"]
 	population = 24
@@ -53,6 +53,7 @@ class Settings():
 	lowlim_jthigh = 90*(np.pi/180)
 	upplim_jleg = 90*(np.pi/180)
 	lowlim_jleg = 0*(np.pi/180)
+	eval_mode = False
 	def __init__(self):
 		pass
 settings = Settings()
@@ -92,21 +93,22 @@ class Policy():
 		self.p = np.array([0.2517, -0.2])
 
 	def make_theta(self):
-		self.a_rightS = self.theta
-		self.a_leftS = np.array([self.theta[2], self.theta[3], self.theta[0], self.theta[1],
-						self.theta[6], self.theta[7], self.theta[4], self.theta[5],
-						self.theta[10], self.theta[11], self.theta[8], self.theta[9],
-						self.theta[14], self.theta[15], self.theta[12], self.theta[13],
-						self.theta[18], self.theta[19], self.theta[16], self.theta[17],
-						self.theta[22], self.theta[23], self.theta[20], self.theta[21]])
+		self.a_rightS = np.append(self.theta[0:20], [self.theta[2], self.theta[3], self.theta[0], self.theta[1]])
+		# print("a_rightS = {}" .format(self.a_rightS))
+		self.a_leftS = np.array([self.a_rightS[2], self.a_rightS[3], self.a_rightS[0], self.a_rightS[1],
+						self.a_rightS[6], self.a_rightS[7], self.a_rightS[4], self.a_rightS[5],
+						self.a_rightS[10], self.a_rightS[11], self.a_rightS[8], self.a_rightS[9],
+						self.a_rightS[14], self.a_rightS[15], self.a_rightS[12], self.a_rightS[13],
+						self.a_rightS[18], self.a_rightS[19], self.a_rightS[16], self.a_rightS[17],
+						self.a_rightS[22], self.a_rightS[23], self.a_rightS[20], self.a_rightS[21]])
 
 	def get_action_star(self, state):
 		pass
 
-	def get_action(self, state):
+	def get_action(self, state, eval_mode = False):
 		pos, vel = state[0:7], state[7:14]
-		tau_right = np.clip(trajectory.tau_Right(pos,self.p), 0, 1.1)
-		tau_left = np.clip(trajectory.tau_Left(pos,self.p), 0, 1.1)	
+		tau_right = np.clip(trajectory.tau_Right(pos,self.p), 0, 1.05)
+		tau_left = np.clip(trajectory.tau_Left(pos,self.p), 0, 1.05)	
 		
 		# if tau_right > 1.0:
 		# 	settings.aux = 1
@@ -133,11 +135,49 @@ class Policy():
 			if tau_left > 1.0:
 				settings.aux = 0
 		
+		if eval_mode:
+			save_plot(tau_right, tau_left, qd, qdotd)			
+
 		q = np.array([pos[3], pos[4], pos[5], pos[6]])    #Take the current position state of the actuated joints and assign them to vector which will be used to compute the error
 		qdot = np.array([vel[3], vel[4], vel[5], vel[6]]) #Take the current velocity state of the actuated joints and assign them to vector which will be used to compute the error
 		action = self.pid.step(qd, qdotd, q, qdot)
 
 		return action
+
+def init_plot():
+    tau_R = open("plots/tauR_data.txt","w+")     #Create text files to save the data o
+    tau_L = open("plots/tauL_data.txt","w+")
+    j1 = open("plots/j1_data.txt","w+")
+    j2 = open("plots/j2_data.txt","w+")
+    j3 = open("plots/j3_data.txt","w+")
+    j4 = open("plots/j4_data.txt","w+")
+    j1d = open("plots/j1d_data.txt","w+")
+    j2d = open("plots/j2d_data.txt","w+")
+    j3d = open("plots/j3d_data.txt","w+")
+    j4d = open("plots/j4d_data.txt","w+")
+
+def save_plot(tau_right, tau_left, qd, qdotd):
+    tau_R = open("plots/tauR_data.txt","a")     #Create text files to save the data o
+    tau_L = open("plots/tauL_data.txt","a")
+    j1 = open("plots/j1_data.txt","a")
+    j2 = open("plots/j2_data.txt","a")
+    j3 = open("plots/j3_data.txt","a")
+    j4 = open("plots/j4_data.txt","a")
+    j1d = open("plots/j1d_data.txt","a")
+    j2d = open("plots/j2d_data.txt","a")
+    j3d = open("plots/j3d_data.txt","a")
+    j4d = open("plots/j4d_data.txt","a")
+
+    tau_R.write("%.2f\r\n" %(tau_right))
+    tau_L.write("%.2f\r\n" %(tau_left))
+    j1.write("%.2f\r\n" %(qd[0]))
+    j2.write("%.2f\r\n" %(qd[1]))
+    j3.write("%.2f\r\n" %(qd[2]))
+    j4.write("%.2f\r\n" %(qd[3]))
+    j1d.write("%.2f\r\n" %(qdotd[0]))
+    j2d.write("%.2f\r\n" %(qdotd[1]))
+    j3d.write("%.2f\r\n" %(qdotd[2]))
+    j4d.write("%.2f\r\n" %(qdotd[3]))
 
 def make_log(txt_log, policy_path):
 	if not os.path.exists(policy_path):
@@ -159,28 +199,28 @@ def make_env(env_name, seed=np.random.seed(None), render_mode=False, desired_vel
 	#	env.seed(seed)
 	return env
 
-def reward_hzd(theta):
-	rew_j1j3_0 = 10*(theta[0]-theta[22])**2	#penalization for not meeting limit cycle condition at tau=0 for joint 1 and 3
-	rew_j1j3_1 = 10*(theta[2]-theta[20])**2	#penalization for not meeting limit cycle condition at tau=1 for joint 1 and 3
-	rew_j2j4_0 = 10*(theta[1]-theta[23])**2	#penalization for not meeting limit cycle condition at tau=0 for joint 2 and 4
-	rew_j2j4_1 = 10*(theta[3]-theta[21])**2	#penalization for not meeting limit cycle condition at tau=1 for joint 2 and 4
-	return - rew_j1j3_0 - rew_j1j3_1 - rew_j2j4_0 - rew_j2j4_1
+# def reward_hzd(theta):
+# 	rew_j1j3_0 = 10*(theta[0]-theta[22])**2	#penalization for not meeting limit cycle condition at tau=0 for joint 1 and 3
+# 	rew_j1j3_1 = 10*(theta[2]-theta[20])**2	#penalization for not meeting limit cycle condition at tau=1 for joint 1 and 3
+# 	rew_j2j4_0 = 10*(theta[1]-theta[23])**2	#penalization for not meeting limit cycle condition at tau=0 for joint 2 and 4
+# 	rew_j2j4_1 = 10*(theta[3]-theta[21])**2	#penalization for not meeting limit cycle condition at tau=1 for joint 2 and 4
+# 	return - rew_j1j3_0 - rew_j1j3_1 - rew_j2j4_0 - rew_j2j4_1
 
 def bound_theta(theta):		#Add offset and restrict to range corresponding to each joint
-	theta_thighR = np.array([theta[0], theta[4], theta[8], theta[12], theta[16], theta[20]])
-	theta_legR = np.array([theta[1], theta[5], theta[9], theta[13], theta[17], theta[21]])
-	theta_thighL = np.array([theta[2], theta[6], theta[10], theta[14], theta[18], theta[22]])
-	theta_legL = np.array([theta[3], theta[7], theta[11], theta[15], theta[19], theta[23]])
+	theta_thighR = np.array([theta[0], theta[4], theta[8], theta[12], theta[16]])
+	theta_legR = np.array([theta[1], theta[5], theta[9], theta[13], theta[17]])
+	theta_thighL = np.array([theta[2], theta[6], theta[10], theta[14], theta[18]])
+	theta_legL = np.array([theta[3], theta[7], theta[11], theta[15], theta[19]])
 
 	theta_thighR = (((settings.upplim_jthigh - settings.lowlim_jthigh)/2)*theta_thighR) + ((settings.upplim_jthigh + settings.lowlim_jthigh)/2)
 	theta_legR = settings.upplim_jleg/2*(theta_legR + 1)
 	theta_thighL = (((settings.upplim_jthigh - settings.lowlim_jthigh)/2)*theta_thighL) + ((settings.upplim_jthigh + settings.lowlim_jthigh)/2)
 	theta_legL = settings.upplim_jleg/2*(theta_legL + 1)
 
-	[theta[0], theta[4], theta[8], theta[12], theta[16], theta[20]] = theta_thighR
-	[theta[1], theta[5], theta[9], theta[13], theta[17], theta[21]] = theta_legR
-	[theta[2], theta[6], theta[10], theta[14], theta[18], theta[22]] = theta_thighL
-	[theta[3], theta[7], theta[11], theta[15], theta[19], theta[23]] = theta_legL
+	[theta[0], theta[4], theta[8], theta[12], theta[16]] = theta_thighR
+	[theta[1], theta[5], theta[9], theta[13], theta[17]] = theta_legR
+	[theta[2], theta[6], theta[10], theta[14], theta[18]] = theta_thighL
+	[theta[3], theta[7], theta[11], theta[15], theta[19]] = theta_legL
 
 	return theta
 
@@ -234,13 +274,13 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 
 
 			timesteps += 1
-			action = pi.get_action(state)
+			action = pi.get_action(state, settings.eval_mode)
 			observation, reward, done, info = env.step(action)
 			if render_mode:
 				env.render("human")
-			######### ADD HERE NEW REWARD using penalization distance between points!!
-			extra_reward = reward_hzd(theta)
-			reward += extra_reward
+			######### ADD HERE NEW REWARD using penalization distance between points!! ### NOT USED WHEN FORCING THE EQUALITIES IN THE VECTOR (look make_theta)
+			# extra_reward = reward_hzd(theta)
+			# reward += extra_reward
 
 			state = observation
 			total_reward += reward
