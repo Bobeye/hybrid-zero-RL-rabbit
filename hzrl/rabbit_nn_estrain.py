@@ -20,8 +20,8 @@ import numpy as np
 """Hyperparameters"""
 class Settings():
 	env_name="Rabbit-v0"
-	txt_log = "log/" + "/train.txt"
-	policy_path = "log/"+ "/policy/"
+	txt_log = "log/" + "/nn_es_train.txt"
+	policy_path = "log/"+ "/nn_es_policy/"
 	backend = "multiprocessing"
 	n_jobs = 8
 	frequency = 20.
