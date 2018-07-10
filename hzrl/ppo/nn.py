@@ -40,7 +40,6 @@ class NeuralNetwork():
 		self.shapes = []
 		for l in range(self.num_layers+1):
 			self.shapes += [(unit_list[2*l], unit_list[2*l+1])]
-		# add prob layer
 		self.shapes += [(unit_list[2*self.num_layers], 1)]
 
 

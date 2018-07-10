@@ -21,6 +21,13 @@ class GeneralizedAdvantageEstimation():
 		err = err * (1 - self.Lambda)
 		return err
 
+def empirical_reward(rewards, gamma=0.99):
+	gammas = []
+	for i in range(rewards.shape[0]):
+		gammas += [gamm**i]
+	gammas = np.array(gammas)
+	return np.dot(rewards, gammas)
+
 def get_prob(k, cov, mean, sample):
 	prob = (1/(np.sqrt((2*np.pi)**k)*np.linalg.det(cov))) * np.exp((-.5)*(np.dot(np.dot((sample-mean).T, np.linalg.inv(cov)), (sample-mean))))
 	return prob
@@ -57,10 +64,15 @@ class PolicyGradient():
 
 		self.gradient = self.calc_gradient(solution_new, model, states, actions, rewards, values)
 
+
 	def calc_gradient(self, solution_new, model, states, actions, rewards, values):
-		g = elementwise_grad(self.clip_loss, argnum=0)(solution_new, model, states, actions, rewards, values)
+		g = elementwise_grad(self.total_loss, argnum=0)(solution_new, model, states, actions, rewards, values)
 		g = np.nan_to_num(g)
 		return g
+
+	def total_loss(self, solution_new, model, states, actions, rewards, values):
+		loss = self.clip_loss(solution_new, model, states, actions, rewards, values) \
+			 + self.value_loss(solution_new, model, states, rewards)
 
 	def clip_loss(self, solution_new, model, states, actions, rewards, values):
 		model.set_weights(solution_new)
@@ -89,5 +101,22 @@ class PolicyGradient():
 		loss = loss / total_steps
 
 		return loss
+
+	def value_loss(self, solution_new, model, states, rewards):
+		model.set_weights(solution_new)
+
+		loss = 0
+		total_steps = 0
+		for b in range(self.n_batch):
+			n_steps = min(states[b].shape[0],self.n_steps)
+			total_steps += n_steps
+			for i in range(n_steps-1):
+				er = empirical_reward(rewards[b][i:], gamma=self.Lambda)
+				_, v = model.predict(states[b][i])
+				loss += ((v-er)**2)
+		loss = loss / total_steps
+
+		return loss
+
 
 
