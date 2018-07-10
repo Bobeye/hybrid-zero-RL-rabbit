@@ -77,7 +77,7 @@ bnd_ctrl_act = 4
 
 init_plot()
 
-iter = 5
+iter = 20
 for k in range(iter):
     start_time_iter = time.time()
     speed = np.zeros(200)
