@@ -27,14 +27,14 @@ def load_model(filename):
     return model_params	
 
 if __name__ == "__main__":
-	policy_path = "log/"+"/policy/26.json"
+	policy_path = "log/"+"/policy/31.json"
 	render_mode = True
-	eval_mode = True	
+	eval_mode = False	
 	init_plot()
 
 
-	desired_velocity = 1.
-	current_speed = 0.
+	desired_velocity = 1
+	current_speed = settings.init_vel
 	
 
 	model = NeuralNetwork(input_dim=settings.conditions_dim,
@@ -89,8 +89,8 @@ if __name__ == "__main__":
 
 			if render_mode:
 				env.render()
-			if done:
-				break
+			# if done:
+			# 	break
 		total_reward_list += [np.array([total_reward]).flatten()]
 	state = env.reset()
 	total_rewards = np.array(total_reward_list)

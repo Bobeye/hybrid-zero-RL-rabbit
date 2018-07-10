@@ -1,2 +1,1 @@
 Summary of the training: 
-(' ave_R ', 52258.14, ' std_R ', 11331.41, ' min_R ', 33093.29, ' max_R ', 87076.38, ' times ', 43587)

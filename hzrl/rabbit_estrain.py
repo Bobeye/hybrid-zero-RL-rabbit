@@ -51,9 +51,11 @@ class Settings():
 	aux = 0
 	upplim_jthigh = 250*(np.pi/180)
 	lowlim_jthigh = 90*(np.pi/180)
-	upplim_jleg = 90*(np.pi/180)
+	upplim_jleg = 150*(np.pi/180)
 	lowlim_jleg = 0*(np.pi/180)
 	eval_mode = False
+	sigmoid_slope = 1
+	init_vel = 0.3769
 	def __init__(self):
 		pass
 settings = Settings()
@@ -120,8 +122,6 @@ class Policy():
 		# 	qdotd = trajectory.d1yd_time_LeftStance(pos,vel,params.a_leftS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
 		# 	if tau_left > 1.0:
 		# 		settings.aux = 0		
-
-		#print ([tau_right, tau_left])
 		
 
 		if tau_right > 1.0:
@@ -206,34 +206,46 @@ def make_env(env_name, seed=np.random.seed(None), render_mode=False, desired_vel
 # 	rew_j2j4_1 = 10*(theta[3]-theta[21])**2	#penalization for not meeting limit cycle condition at tau=1 for joint 2 and 4
 # 	return - rew_j1j3_0 - rew_j1j3_1 - rew_j2j4_0 - rew_j2j4_1
 
-def bound_theta(theta):		#Add offset and restrict to range corresponding to each joint
+def bound_theta(theta):		#Add offset and restrict to range corresponding to each joint. The input is assumed to be bounded as tanh, with range -1,1
 	theta_thighR = np.array([theta[0], theta[4], theta[8], theta[12], theta[16]])
 	theta_legR = np.array([theta[1], theta[5], theta[9], theta[13], theta[17]])
 	theta_thighL = np.array([theta[2], theta[6], theta[10], theta[14], theta[18]])
 	theta_legL = np.array([theta[3], theta[7], theta[11], theta[15], theta[19]])
-
 	theta_thighR = (((settings.upplim_jthigh - settings.lowlim_jthigh)/2)*theta_thighR) + ((settings.upplim_jthigh + settings.lowlim_jthigh)/2)
 	theta_legR = settings.upplim_jleg/2*(theta_legR + 1)
 	theta_thighL = (((settings.upplim_jthigh - settings.lowlim_jthigh)/2)*theta_thighL) + ((settings.upplim_jthigh + settings.lowlim_jthigh)/2)
 	theta_legL = settings.upplim_jleg/2*(theta_legL + 1)
-
 	[theta[0], theta[4], theta[8], theta[12], theta[16]] = theta_thighR
 	[theta[1], theta[5], theta[9], theta[13], theta[17]] = theta_legR
 	[theta[2], theta[6], theta[10], theta[14], theta[18]] = theta_thighL
 	[theta[3], theta[7], theta[11], theta[15], theta[19]] = theta_legL
-
 	return theta
+
+def bound_theta_sigmoid(theta):		#Add offset and restrict to range corresponding to each joint. The input is assumed to be bounded as tanh, with range -1,1
+	theta = sigmoid(theta)
+	theta_thighR = np.array([theta[0], theta[4], theta[8], theta[12], theta[16]])
+	theta_legR = np.array([theta[1], theta[5], theta[9], theta[13], theta[17]])
+	theta_thighL = np.array([theta[2], theta[6], theta[10], theta[14], theta[18]])
+	theta_legL = np.array([theta[3], theta[7], theta[11], theta[15], theta[19]])
+	theta_thighR = ((settings.upplim_jthigh - settings.lowlim_jthigh)*theta_thighR) + settings.lowlim_jthigh
+	theta_legR = settings.upplim_jleg*(theta_legR)
+	theta_thighL = ((settings.upplim_jthigh - settings.lowlim_jthigh)*theta_thighL) + settings.lowlim_jthigh
+	theta_legL = settings.upplim_jleg*(theta_legL)
+	[theta[0], theta[4], theta[8], theta[12], theta[16]] = theta_thighR
+	[theta[1], theta[5], theta[9], theta[13], theta[17]] = theta_legR
+	[theta[2], theta[6], theta[10], theta[14], theta[18]] = theta_thighL
+	[theta[3], theta[7], theta[11], theta[15], theta[19]] = theta_legL
+	return theta
+
 
 def simulate(model, solution, settings, desired_velocity, render_mode):
 	
 	model.set_weights(solution) #FIX FOR EACH PAIR model-solution
-	current_speed = 0. 
+	current_speed = settings.init_vel
 	theta = model.predict(np.array([desired_velocity, current_speed]))
 	theta = bound_theta(theta)
 	#theta = settings.theta_upbnd*sigmoid(theta)	
-
 	print(theta)	
-	
 	pi = Policy(theta=theta, action_size=settings.action_size, 
 				action_min=settings.action_min, action_max=settings.action_max,
 				kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency)
@@ -307,7 +319,9 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 
  # SIGMOID``
 def sigmoid(x):
-	return 1 / (1 + np.exp(-x))
+	return 1 / (1 + np.exp(-settings.sigmoid_slope*x))
+
+
 
 if __name__ == "__main__":
 

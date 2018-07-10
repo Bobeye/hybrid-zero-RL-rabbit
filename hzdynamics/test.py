@@ -39,8 +39,10 @@ class Settings():
 	aux = 0
 	upplim_jthigh = 250*(np.pi/180)
 	lowlim_jthigh = 90*(np.pi/180)
-	upplim_jleg = 90*(np.pi/180)
+	upplim_jleg = 150*(np.pi/180)
 	lowlim_jleg = 0*(np.pi/180)
+	sigmoid_slope = 1
+	init_vel = 0.3769
 	def __init__(self):
 		pass
 settings = Settings()
@@ -52,22 +54,34 @@ def bound_theta(theta):		#Add offset and restrict to range corresponding to each
 	theta_thighR = (((settings.upplim_jthigh - settings.lowlim_jthigh)/2)*theta_thighR) + ((settings.upplim_jthigh + settings.lowlim_jthigh)/2)
 	return theta_thighR
 
+def bound_theta_sigmoid(theta):		#Add offset and restrict to range corresponding to each joint. The input is assumed to be bounded as tanh, with range -1,1
+	theta = sigmoid(theta)
+	theta_thighR = theta
+	theta_legR = theta
+	theta_thighR = ((settings.upplim_jthigh - settings.lowlim_jthigh)*theta_thighR) + settings.lowlim_jthigh
+	theta_legR = settings.upplim_jleg*(theta_legR)
+	return theta_legR
+
  # SIGMOID``
 def sigmoid(x):
-	return 1 / (1 + np.exp(-x))
+	return 1 / (1 + np.exp(-settings.sigmoid_slope*x))
 
 if __name__ == "__main__":
-	t = np.linspace(-5.0, 5.0, num=100)
-	theta = np.tanh(t)
-	theta_new = bound_theta(theta)
+	steps = 100
+	t = np.linspace(-5.0, 5.0, num=steps)
+	#theta = np.tanh(t)
+	theta = t
+	theta_old = sigmoid(t)
+	
+	theta_new = bound_theta_sigmoid(theta)
 
-	plt.plot(theta[0:450],color="blue", linewidth=1.5, linestyle="-", label="$\Theta_1$")   
-	plt.plot(theta_new[0:450],color="red", linewidth=1.5, linestyle="-", label="$\Theta_2$")
+	plt.plot(theta_old[0:steps],color="blue", linewidth=1.5, linestyle="-", label="$\Theta_old$")   
+	plt.plot(theta_new[0:steps],color="red", linewidth=1.5, linestyle="-", label="$\Theta_new$")
 	#Plot legend
 	plt.legend(loc='upper right')
 	#Axis format
 	ax = plt.gca()  # gca stands for 'get current axis'
 	#Axis labels
 	ax.set_xlabel('Steps')
-	ax.set_ylabel('Joint angle [rad]')
+	ax.set_ylabel('Theta')
 	plt.show()
