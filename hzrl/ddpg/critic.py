@@ -1,4 +1,5 @@
 from nn import NeuralNetwork
+import autograd.numpy as np
 
 class CriticNetwork():
 

@@ -1,4 +1,4 @@
-import numpy as np
+import autograd.numpy as np
 
 def relu(x):
 	return np.maximum(x, 0)
