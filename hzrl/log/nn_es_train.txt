@@ -1,0 +1,2 @@
+Summary of the training: 
+(' ave_R ', 10377.23, ' std_R ', 5487.04, ' min_R ', 1938.47, ' max_R ', 22719.92, ' times ', 0)

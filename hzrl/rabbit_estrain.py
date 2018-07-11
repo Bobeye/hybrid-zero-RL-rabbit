@@ -51,7 +51,7 @@ class Settings():
 	aux = 0
 	upplim_jthigh = 250*(np.pi/180)
 	lowlim_jthigh = 90*(np.pi/180)
-	upplim_jleg = 150*(np.pi/180)
+	upplim_jleg = 120*(np.pi/180)
 	lowlim_jleg = 0*(np.pi/180)
 	eval_mode = False
 	sigmoid_slope = 1
@@ -59,6 +59,38 @@ class Settings():
 	def __init__(self):
 		pass
 settings = Settings()
+
+"""Customized Reward Func"""
+def get_reward(reward_params, desired_vel, mode="linear"):
+	alive_bonus, posafter, height, velocity, a= reward_params[0], reward_params[1], reward_params[2], reward_params[3], reward_params[4]
+	scale = 1
+	if mode == "linear":
+		if velocity < 0:
+			velocity_reward = 0.
+		elif velocity > desired_vel:
+			velocity_reward =  1      
+		else:
+			velocity_reward = (desired_vel - velocity)/ desired_vel
+            
+	if mode == "quadratic":
+		if velocity < 0:
+			velocity_reward = 0.
+		elif velocity > desired_vel:
+			velocity_reward =  1      
+		else:
+			velocity_reward = (desired_vel - velocity)/ desired_vel	
+
+
+	action_reward = -1e-2 * np.sum(a**2)
+	height_reward = height
+	displacement_reward  = posafter
+
+	reward = alive_bonus + 200*velocity_reward + 1*height_reward + 1*action_reward + 1*displacement_reward
+	reward = scale*reward
+	# print (alive_bonus , velocity_reward , height_reward , action_reward , displacement_reward)
+
+	return reward
+
 
 """PID controller"""
 MIN_NUM = float('-inf')
@@ -83,7 +115,7 @@ class Policy():
 				 action_size=4,
 				 action_min=-4.,
 				 action_max=4.,
-				 kp=50, kd=1, feq=20.):
+				 kp=120, kd=2, feq=20.):
 		self.theta = theta
 		self.make_theta()
 		self.action_size = action_size
@@ -123,7 +155,6 @@ class Policy():
 		# 	if tau_left > 1.0:
 		# 		settings.aux = 0		
 		
-
 		if tau_right > 1.0:
 			settings.aux = 1
 		if settings.aux == 0:
@@ -199,14 +230,8 @@ def make_env(env_name, seed=np.random.seed(None), render_mode=False, desired_vel
 	#	env.seed(seed)
 	return env
 
-# def reward_hzd(theta):
-# 	rew_j1j3_0 = 10*(theta[0]-theta[22])**2	#penalization for not meeting limit cycle condition at tau=0 for joint 1 and 3
-# 	rew_j1j3_1 = 10*(theta[2]-theta[20])**2	#penalization for not meeting limit cycle condition at tau=1 for joint 1 and 3
-# 	rew_j2j4_0 = 10*(theta[1]-theta[23])**2	#penalization for not meeting limit cycle condition at tau=0 for joint 2 and 4
-# 	rew_j2j4_1 = 10*(theta[3]-theta[21])**2	#penalization for not meeting limit cycle condition at tau=1 for joint 2 and 4
-# 	return - rew_j1j3_0 - rew_j1j3_1 - rew_j2j4_0 - rew_j2j4_1
-
-def bound_theta(theta):		#Add offset and restrict to range corresponding to each joint. The input is assumed to be bounded as tanh, with range -1,1
+# BOUND THETA USING TANH FUNCTION
+def bound_theta_tanh(theta):		#Add offset and restrict to range corresponding to each joint. The input is assumed to be bounded as tanh, with range -1,1
 	theta_thighR = np.array([theta[0], theta[4], theta[8], theta[12], theta[16]])
 	theta_legR = np.array([theta[1], theta[5], theta[9], theta[13], theta[17]])
 	theta_thighL = np.array([theta[2], theta[6], theta[10], theta[14], theta[18]])
@@ -221,6 +246,9 @@ def bound_theta(theta):		#Add offset and restrict to range corresponding to each
 	[theta[3], theta[7], theta[11], theta[15], theta[19]] = theta_legL
 	return theta
 
+# BOUND THETA USING SIGMOID FUNCTION
+def sigmoid(x):
+	return 1 / (1 + np.exp(-settings.sigmoid_slope*x))
 def bound_theta_sigmoid(theta):		#Add offset and restrict to range corresponding to each joint. The input is assumed to be bounded as tanh, with range -1,1
 	theta = sigmoid(theta)
 	theta_thighR = np.array([theta[0], theta[4], theta[8], theta[12], theta[16]])
@@ -239,13 +267,12 @@ def bound_theta_sigmoid(theta):		#Add offset and restrict to range corresponding
 
 
 def simulate(model, solution, settings, desired_velocity, render_mode):
-	
 	model.set_weights(solution) #FIX FOR EACH PAIR model-solution
 	current_speed = settings.init_vel
 	theta = model.predict(np.array([desired_velocity, current_speed]))
-	theta = bound_theta(theta)
-	#theta = settings.theta_upbnd*sigmoid(theta)	
-	print(theta)	
+	theta = bound_theta_tanh(theta)
+	# theta = bound_theta_sigmoid(theta)
+	# print(theta)	
 	pi = Policy(theta=theta, action_size=settings.action_size, 
 				action_min=settings.action_min, action_max=settings.action_max,
 				kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency)
@@ -275,7 +302,7 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 			current_speed = state[8]	#current velocity of hip
 			if last_speed is None or (current_speed - last_speed) < 1e-2: 
 				theta = model.predict(np.array([desired_velocity, current_speed]))
-				theta = bound_theta(theta)
+				theta = bound_theta_tanh(theta)
 				#theta = settings.theta_upbnd*sigmoid(theta)	
 				# print(theta)
 				last_speed = current_speed	
@@ -288,11 +315,9 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 			timesteps += 1
 			action = pi.get_action(state, settings.eval_mode)
 			observation, reward, done, info = env.step(action)
+			#reward = get_reward(reward_params, desired_velocity, mode="linear")
 			if render_mode:
 				env.render("human")
-			######### ADD HERE NEW REWARD using penalization distance between points!! ### NOT USED WHEN FORCING THE EQUALITIES IN THE VECTOR (look make_theta)
-			# extra_reward = reward_hzd(theta)
-			# reward += extra_reward
 
 			state = observation
 			total_reward += reward
@@ -315,11 +340,6 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 	# 	env.close()
 	
 	return [rewards, timesteps]
-
-
- # SIGMOID``
-def sigmoid(x):
-	return 1 / (1 + np.exp(-settings.sigmoid_slope*x))
 
 
 

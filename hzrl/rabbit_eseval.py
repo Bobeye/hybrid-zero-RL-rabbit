@@ -16,7 +16,7 @@ import json
 import os
 import numpy as np
 
-from rabbit_estrain import settings, Policy, make_env, sigmoid, bound_theta, init_plot
+from rabbit_estrain import settings, Policy, make_env, sigmoid, bound_theta_tanh, bound_theta_sigmoid, init_plot
 
 
 def load_model(filename):
@@ -27,16 +27,15 @@ def load_model(filename):
     return model_params	
 
 if __name__ == "__main__":
-	policy_path = "log/"+"/policy/31.json"
+	policy_path = "log/"+"/policy/22.json"
+
 	render_mode = True
 	eval_mode = False	
 	init_plot()
 
-
-	desired_velocity = 1
+	desired_velocity = 0.8
 	current_speed = settings.init_vel
 	
-
 	model = NeuralNetwork(input_dim=settings.conditions_dim,
 					 	  output_dim=settings.theta_dim,
 					 	  units=settings.nn_units,
@@ -45,7 +44,7 @@ if __name__ == "__main__":
 	model_params = load_model(policy_path)
 	model.set_weights(model_params)
 	theta = model.predict(np.array([desired_velocity, current_speed]))
-	theta = bound_theta(theta)	
+	theta = bound_theta_tanh(theta)	
 	print (theta)
 
 	pi = Policy(theta=theta, action_size=settings.action_size, 
@@ -66,11 +65,12 @@ if __name__ == "__main__":
 		for t in range(settings.max_episode_length*2):
 			#timesteps += 1
 			current_speed = abs(state[7])	#current velocity of hip
-			print(current_speed)
+			# print(current_speed)
 			#print(current_speed)
 			if last_speed is None or (current_speed - last_speed) < 1e-2: 
 				theta = model.predict(np.array([desired_velocity, current_speed]))
-				theta = bound_theta(theta)
+				theta = bound_theta_tanh(theta)
+				#theta = bound_theta_sigmoid(theta)
 				#print(theta)
 				last_speed = current_speed
 			# else:
