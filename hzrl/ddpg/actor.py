@@ -8,6 +8,7 @@ class ActorNetwork():
 				 				   output_dim=action_dim,
 				 				   units=nnunits,
 				 				   activations=nnactivations)
+		self.parameter_count = self.model.parameter_count
 
 	def set_weights(self, model_params):
 		self.model.set_weights(model_params)
