@@ -35,8 +35,8 @@ class Settings():
 	action_max = 4.
 	control_kp = 150.
 	control_kd = 5.
-	desired_v_low = 0.6
-	desired_v_up = 1.2
+	desired_v_low = 0.7
+	desired_v_up = 1.1
 	conditions_dim = 1
 	theta_dim = 20
 	nn_units=[16,16]

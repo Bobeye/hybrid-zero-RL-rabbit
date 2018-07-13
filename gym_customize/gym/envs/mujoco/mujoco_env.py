@@ -38,6 +38,7 @@ class MujocoEnv(gym.Env):
         self.init_qvel = self.sim.data.qvel.ravel().copy()
         #====================== ADDED BY G.C.==================== Just for giving the variable desired_vel, which will be updated later with the function assign_desired_vel 
         self.desired_vel = 1
+        self.seed()
         self.reset()        #to avoid problems in each initialization
         #====================== ADDED BY G.C.====================
         observation, _reward, done, _info = self.step(np.zeros(self.model.nu))
@@ -53,7 +54,7 @@ class MujocoEnv(gym.Env):
         low = -high
         self.observation_space = spaces.Box(low, high)
 
-        self.seed()
+
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)

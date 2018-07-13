@@ -35,6 +35,7 @@ class TimeLimit(Wrapper):
             if self.metadata.get('semantics.autoreset'):
                 _ = self.reset() # automatically reset the env
             done = True 
+           # print("max episode steps reached")      ####ADDED TO CHECK THE MAX OF THE EPISODE
 
         return observation, reward, done, info
 

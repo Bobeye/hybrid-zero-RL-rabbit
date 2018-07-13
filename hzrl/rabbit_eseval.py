@@ -52,7 +52,7 @@ def eval_reward(reward_params, reward_tau, desired_vel):
 
 
 if __name__ == "__main__":
-	policy_path = "log/"+"/policy/121.json" #24 better than 58
+	policy_path = "log/"+"/policy/120.json" #24 better than 58
 
 	render_mode = True
 	eval_mode = True	
