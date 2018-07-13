@@ -43,10 +43,10 @@
   </worldbody>
   <actuator>
     <!-- <motor joint="torso_joint" ctrlrange="-100.0 100.0" isctrllimited="true"/>-->
-    <motor ctrllimited="true" ctrlrange="-4.0 4.0" gear="15" joint="thigh_joint"/>
-    <motor ctrllimited="true" ctrlrange="-4.0 4.0" gear="15" joint="leg_joint"/>
-    <motor ctrllimited="true" ctrlrange="-4.0 4.0" gear="15" joint="thigh_left_joint"/>
-    <motor ctrllimited="true" ctrlrange="-4.0 4.0" gear="15" joint="leg_left_joint"/>
+    <motor ctrllimited="true" ctrlrange="-4.0 4.0" gear="10" joint="thigh_joint"/>
+    <motor ctrllimited="true" ctrlrange="-4.0 4.0" gear="10" joint="leg_joint"/>
+    <motor ctrllimited="true" ctrlrange="-4.0 4.0" gear="10" joint="thigh_left_joint"/>
+    <motor ctrllimited="true" ctrlrange="-4.0 4.0" gear="10" joint="leg_left_joint"/>
     <!-- <motor ctrllimited="true" ctrlrange="-4.0 4.0" gear="5" joint="leg_left_joint/>-->
   </actuator>
     <asset>

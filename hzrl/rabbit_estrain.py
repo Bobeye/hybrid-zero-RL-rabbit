@@ -27,20 +27,21 @@ class Settings():
 	frequency = 20.
 	total_threshold = 1e8
 	num_episode = 5
-	max_episode_length=1000
+	max_episode_length=1600
 	batch_mode="mean"
 	state_size = 14
 	action_size = 4
 	action_min = -4.
 	action_max = 4.
-	control_kp = 120.
-	control_kd = 2.
-	desired_v_low = 0.6
-	desired_v_up = 1
-	conditions_dim = 2
+	control_kp = 150.
+	control_kd = 5.
+	desired_v_low = 0.7
+	desired_v_up = 1.1
+	conditions_dim = 1
 	theta_dim = 20
 	nn_units=[16,16]
-	nn_activations=["relu", "relu", "tanh"]
+	# nn_activations=["relu", "relu", "tanh"]  #When using tanh for bounding the output of the NN
+	nn_activations=["relu", "relu", "passthru"]  #When using sigmoid for bounding the output of the NN 
 	population = 24
 	sigma_init=0.1
 	sigma_decay=0.9999 
@@ -51,12 +52,131 @@ class Settings():
 	aux = 0
 	upplim_jthigh = 250*(np.pi/180)
 	lowlim_jthigh = 90*(np.pi/180)
-	upplim_jleg = 90*(np.pi/180)
+	upplim_jleg = 120*(np.pi/180)
 	lowlim_jleg = 0*(np.pi/180)
 	eval_mode = False
+	sigmoid_slope = 1
+	init_vel = 0.3769 + 0.05*np.random.uniform(low=-.005, high=.005, size=1)
+	vel_list = np.zeros(20)
+	count = 0
 	def __init__(self):
 		pass
 settings = Settings()
+
+"""Customized Reward Func"""
+def get_reward(reward_params, reward_tau, desired_vel, mode="linear"):
+	alive_bonus, posafter, posbefore, velocity, a, w = reward_params[0], reward_params[1], reward_params[2], reward_params[3], reward_params[4], reward_params[5]
+	# print (w)
+	if mode == "linear1":	#Works better so far, but can not follow desired speed
+		scale = 0.5
+		if velocity < 0:
+			velocity_reward = 0
+			# velocity_reward = velocity
+		elif velocity <= desired_vel:
+			velocity_reward = (velocity)/ desired_vel    
+			#print(velocity_reward) 
+		else:
+			velocity_reward = desired_vel/velocity
+			# print(velocity_reward)
+		action_reward = -1e-2 * np.sum(a**2)
+		displacement_reward  = posafter
+		reward = alive_bonus + 1*velocity_reward + 1*action_reward + 1*displacement_reward
+		reward = scale*reward	
+
+	if mode == "linear2":
+		scale = 0.1
+		if velocity < 0:
+			# velocity_reward = 0
+			velocity_reward = -abs(velocity)
+		elif velocity <= desired_vel:
+			velocity_reward = (velocity)/ desired_vel    
+			#print(velocity_reward) 
+		else:
+			velocity_reward = - abs(velocity - desired_vel)
+			# print(velocity_reward)
+
+		angular_reward = w	
+		action_reward = -1e-2 * np.sum(a**2)
+		displacement_reward  = posafter - posbefore
+		reward = alive_bonus + 10*velocity_reward + 1*action_reward + 10*displacement_reward + 1*angular_reward
+		reward = scale*reward
+		# print("reward = {}" .format(reward))
+
+
+		settings.vel_list[settings.count] = velocity
+		settings.count += 1
+		if settings.count == 20:
+			settings.count = 0
+
+		ave_vel = np.mean(settings.vel_list)
+		# print("ave_vel = {}" .format(ave_vel))
+
+		action_reward = -1e-2 * np.sum(a**2)
+		displacement_reward  = posafter
+		reward = alive_bonus + 1*velocity_reward + 1*action_reward + 1*displacement_reward
+		reward = scale*reward
+
+	if mode == "angular":
+		scale = 0.5
+		# print(velocity)
+		if velocity < 0:
+			velocity_reward = velocity
+			# velocity_reward = velocity
+		elif velocity <= desired_vel:
+			velocity_reward = (velocity)/ desired_vel    
+			#print(velocity_reward) 
+		else:
+			velocity_reward = desired_vel/velocity
+			# print(velocity_reward)
+
+		angular_reward = w
+		action_reward = -1e-2 * np.sum(a**2)
+		displacement_reward  = posafter
+		reward = alive_bonus + 1*velocity_reward + 1*action_reward + 1*displacement_reward + angular_reward
+		reward = scale*reward		
+
+	if mode == "quadratic":
+		#print("yes")
+		scale = 0.5
+		if velocity < 0:
+			velocity_reward = 0
+			# velocity_reward = velocity
+		elif velocity <= desired_vel:
+			velocity_reward = (desired_vel-velocity)**2    
+			#print(velocity_reward) 
+		else:
+			velocity_reward = - (desired_vel-velocity)**2
+			# print(velocity_reward)	
+		action_reward = -1e-2 * np.sum(a**2)
+		displacement_reward  = posafter
+		reward = alive_bonus + 1*velocity_reward + 1*action_reward + 1*displacement_reward
+		reward = scale*reward
+
+
+	if mode == "tau": # Consider phase variable Tau in the reward function and add penalization when speed is higher than the desired one
+		#Also use angular velocity to try to impose torso position
+		scale = 0.1
+		if velocity < 0:
+			velocity_reward = 0
+			# velocity_reward = -abs(velocity)
+		elif velocity <= desired_vel:
+			velocity_reward = (velocity)/ desired_vel    
+			#print(velocity_reward) 
+		else:
+			velocity_reward = - abs(velocity - desired_vel)
+			# print(velocity_reward)
+
+		angular_reward = w	
+		action_reward = -1e-2 * np.sum(a**2)
+		displacement_reward  = posafter
+		reward = alive_bonus + 10*velocity_reward + 1*action_reward + 2*displacement_reward + 1*reward_tau + 1*angular_reward
+		reward = scale*reward
+		# print("reward = {}" .format(reward))
+	
+	# print(reward)
+	# print (alive_bonus , velocity_reward , height_reward , action_reward , displacement_reward)
+	return reward
+
 
 """PID controller"""
 MIN_NUM = float('-inf')
@@ -81,7 +201,7 @@ class Policy():
 				 action_size=4,
 				 action_min=-4.,
 				 action_max=4.,
-				 kp=50, kd=1, feq=20.):
+				 kp=120, kd=2, feq=20.):
 		self.theta = theta
 		self.make_theta()
 		self.action_size = action_size
@@ -110,31 +230,45 @@ class Policy():
 		tau_right = np.clip(trajectory.tau_Right(pos,self.p), 0, 1.05)
 		tau_left = np.clip(trajectory.tau_Left(pos,self.p), 0, 1.05)	
 		
-		# if tau_right > 1.0:
+		# reward_tau = 0
+		# reward_step = 0
+		# if tau_right > 1.0 and settings.aux == 0:
 		# 	settings.aux = 1
+		# 	reward_step = 10
 		# if settings.aux == 0:
 		# 	qd, tau = trajectory.yd_time_RightStance(pos,params.a_rightS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
 		# 	qdotd = trajectory.d1yd_time_RightStance(pos,vel,params.a_rightS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
+		# 	reward_tau = tau_right
 		# else:
 		# 	qd = trajectory.yd_time_LeftStance(pos,params.a_leftS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
 		# 	qdotd = trajectory.d1yd_time_LeftStance(pos,vel,params.a_leftS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
-		# 	if tau_left > 1.0:
-		# 		settings.aux = 0		
-
-		#print ([tau_right, tau_left])
+		# 	reward_tau = tau_left
+		# 	if tau_left > 1.0 and settings.aux == 1:
+		# 		settings.aux = 0
+		# 		reward_step = 10
+		# reward_tau +=reward_step 
+		# # print(reward_tau)
+						
 		
-
-		if tau_right > 1.0:
+		reward_tau = 0
+		reward_step = 0
+		if tau_right > 1.0 and settings.aux == 0:
 			settings.aux = 1
+			reward_step = 10
 		if settings.aux == 0:
 			qd, tau = trajectory.yd_time_RightStance(pos,self.a_rightS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
 			qdotd = trajectory.d1yd_time_RightStance(pos,vel,self.a_rightS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
+			reward_tau = tau_right
 		else:
 			qd = trajectory.yd_time_LeftStance(pos,self.a_leftS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
 			qdotd = trajectory.d1yd_time_LeftStance(pos,vel,self.a_leftS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
-			if tau_left > 1.0:
+			reward_tau = tau_left
+			if tau_left > 1.0 and settings.aux == 1:
 				settings.aux = 0
-		
+				reward_step = 10
+		reward_tau +=reward_step 
+		# print(reward_tau)
+
 		if eval_mode:
 			save_plot(tau_right, tau_left, qd, qdotd)			
 
@@ -142,7 +276,7 @@ class Policy():
 		qdot = np.array([vel[3], vel[4], vel[5], vel[6]]) #Take the current velocity state of the actuated joints and assign them to vector which will be used to compute the error
 		action = self.pid.step(qd, qdotd, q, qdot)
 
-		return action
+		return action, reward_tau
 
 def init_plot():
     tau_R = open("plots/tauR_data.txt","w+")     #Create text files to save the data o
@@ -199,41 +333,50 @@ def make_env(env_name, seed=np.random.seed(None), render_mode=False, desired_vel
 	#	env.seed(seed)
 	return env
 
-# def reward_hzd(theta):
-# 	rew_j1j3_0 = 10*(theta[0]-theta[22])**2	#penalization for not meeting limit cycle condition at tau=0 for joint 1 and 3
-# 	rew_j1j3_1 = 10*(theta[2]-theta[20])**2	#penalization for not meeting limit cycle condition at tau=1 for joint 1 and 3
-# 	rew_j2j4_0 = 10*(theta[1]-theta[23])**2	#penalization for not meeting limit cycle condition at tau=0 for joint 2 and 4
-# 	rew_j2j4_1 = 10*(theta[3]-theta[21])**2	#penalization for not meeting limit cycle condition at tau=1 for joint 2 and 4
-# 	return - rew_j1j3_0 - rew_j1j3_1 - rew_j2j4_0 - rew_j2j4_1
-
-def bound_theta(theta):		#Add offset and restrict to range corresponding to each joint
+# BOUND THETA USING TANH FUNCTION
+def bound_theta_tanh(theta):		#Add offset and restrict to range corresponding to each joint. The input is assumed to be bounded as tanh, with range -1,1
 	theta_thighR = np.array([theta[0], theta[4], theta[8], theta[12], theta[16]])
 	theta_legR = np.array([theta[1], theta[5], theta[9], theta[13], theta[17]])
 	theta_thighL = np.array([theta[2], theta[6], theta[10], theta[14], theta[18]])
 	theta_legL = np.array([theta[3], theta[7], theta[11], theta[15], theta[19]])
-
 	theta_thighR = (((settings.upplim_jthigh - settings.lowlim_jthigh)/2)*theta_thighR) + ((settings.upplim_jthigh + settings.lowlim_jthigh)/2)
 	theta_legR = settings.upplim_jleg/2*(theta_legR + 1)
 	theta_thighL = (((settings.upplim_jthigh - settings.lowlim_jthigh)/2)*theta_thighL) + ((settings.upplim_jthigh + settings.lowlim_jthigh)/2)
 	theta_legL = settings.upplim_jleg/2*(theta_legL + 1)
-
 	[theta[0], theta[4], theta[8], theta[12], theta[16]] = theta_thighR
 	[theta[1], theta[5], theta[9], theta[13], theta[17]] = theta_legR
 	[theta[2], theta[6], theta[10], theta[14], theta[18]] = theta_thighL
 	[theta[3], theta[7], theta[11], theta[15], theta[19]] = theta_legL
-
 	return theta
 
-def simulate(model, solution, settings, desired_velocity, render_mode):
-	
-	model.set_weights(solution) #FIX FOR EACH PAIR model-solution
-	current_speed = 0. 
-	theta = model.predict(np.array([desired_velocity, current_speed]))
-	theta = bound_theta(theta)
-	#theta = settings.theta_upbnd*sigmoid(theta)	
+# BOUND THETA USING SIGMOID FUNCTION
+def sigmoid(x):
+	return 1 / (1 + np.exp(-settings.sigmoid_slope*x))
+def bound_theta_sigmoid(theta):		#Add offset and restrict to range corresponding to each joint. The input is assumed to be bounded as tanh, with range -1,1
+	theta = sigmoid(theta)
+	theta_thighR = np.array([theta[0], theta[4], theta[8], theta[12], theta[16]])
+	theta_legR = np.array([theta[1], theta[5], theta[9], theta[13], theta[17]])
+	theta_thighL = np.array([theta[2], theta[6], theta[10], theta[14], theta[18]])
+	theta_legL = np.array([theta[3], theta[7], theta[11], theta[15], theta[19]])
+	theta_thighR = ((settings.upplim_jthigh - settings.lowlim_jthigh)*theta_thighR) + settings.lowlim_jthigh
+	theta_legR = settings.upplim_jleg*(theta_legR)
+	theta_thighL = ((settings.upplim_jthigh - settings.lowlim_jthigh)*theta_thighL) + settings.lowlim_jthigh
+	theta_legL = settings.upplim_jleg*(theta_legL)
+	[theta[0], theta[4], theta[8], theta[12], theta[16]] = theta_thighR
+	[theta[1], theta[5], theta[9], theta[13], theta[17]] = theta_legR
+	[theta[2], theta[6], theta[10], theta[14], theta[18]] = theta_thighL
+	[theta[3], theta[7], theta[11], theta[15], theta[19]] = theta_legL
+	return theta
 
-	print(theta)	
-	
+
+def simulate(model, solution, settings, desired_velocity, render_mode):
+	model.set_weights(solution) #FIX FOR EACH PAIR model-solution
+	current_speed = settings.init_vel
+	# theta = model.predict(np.array([desired_velocity, current_speed])) #When usign 2 inputs for the NN
+	theta = model.predict(current_speed)
+	# theta = bound_theta_tanh(theta)
+	theta = bound_theta_sigmoid(theta)
+	# print(theta)	
 	pi = Policy(theta=theta, action_size=settings.action_size, 
 				action_min=settings.action_min, action_max=settings.action_max,
 				kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency)
@@ -262,9 +405,10 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 			#PREDICT THETA EVERY EPISODE FOR DIFFERENT VELOCITIES TO DO THE TRAINING
 			current_speed = state[8]	#current velocity of hip
 			if last_speed is None or (current_speed - last_speed) < 1e-2: 
-				theta = model.predict(np.array([desired_velocity, current_speed]))
-				theta = bound_theta(theta)
-				#theta = settings.theta_upbnd*sigmoid(theta)	
+				# theta = model.predict(np.array([desired_velocity, current_speed])) #When usign 2 inputs for the NN
+				theta = model.predict(current_speed)
+				# theta = bound_theta_tanh(theta)
+				theta = bound_theta_sigmoid(theta)
 				# print(theta)
 				last_speed = current_speed	
 			# print (current_speed)
@@ -274,13 +418,14 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 
 
 			timesteps += 1
-			action = pi.get_action(state, settings.eval_mode)
-			observation, reward, done, info = env.step(action)
+			action, reward_tau = pi.get_action(state, settings.eval_mode)
+
+			observation, reward_params, done, info = env.step(action)
+			reward = get_reward(reward_params, reward_tau, desired_velocity, mode="tau")
+
+
 			if render_mode:
 				env.render("human")
-			######### ADD HERE NEW REWARD using penalization distance between points!! ### NOT USED WHEN FORCING THE EQUALITIES IN THE VECTOR (look make_theta)
-			# extra_reward = reward_hzd(theta)
-			# reward += extra_reward
 
 			state = observation
 			total_reward += reward
@@ -305,9 +450,6 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 	return [rewards, timesteps]
 
 
- # SIGMOID``
-def sigmoid(x):
-	return 1 / (1 + np.exp(-x))
 
 if __name__ == "__main__":
 
@@ -317,22 +459,22 @@ if __name__ == "__main__":
 					 	  output_dim=settings.theta_dim,
 					 	  units=settings.nn_units,
 					 	  activations=settings.nn_activations)
-	# # Adopt OpenAI ES
-	# escls = OpenES(model.parameter_count, 
-	# 			   sigma_init=settings.sigma_init, 
-	# 			   sigma_decay=settings.sigma_decay, 
-	# 			   sigma_limit=settings.sigma_limit, 
-	# 			   learning_rate=settings.learning_rate,
-	# 			   learning_rate_decay=settings.learning_rate_decay, 
-	# 			   learning_rate_limit=settings.learning_rate_limit,
-	# 			   popsize=settings.population, 
-	# 			   antithetic=True)
+	# Adopt OpenAI ES
+	escls = OpenES(model.parameter_count, 
+				   sigma_init=settings.sigma_init, 
+				   sigma_decay=settings.sigma_decay, 
+				   sigma_limit=settings.sigma_limit, 
+				   learning_rate=settings.learning_rate,
+				   learning_rate_decay=settings.learning_rate_decay, 
+				   learning_rate_limit=settings.learning_rate_limit,
+				   popsize=settings.population, 
+				   antithetic=True)
 
 	# Adopt CMA-ES
-	escls = CMAES(model.parameter_count,
-				  sigma_init=settings.sigma_init,
-				  popsize=settings.population,
-				  weight_decay=settings.sigma_decay)
+	# escls = CMAES(model.parameter_count,
+	# 			  sigma_init=settings.sigma_init,
+	# 			  popsize=settings.population,
+	# 			  weight_decay=settings.sigma_decay)
 
 	step = 0
 	total_timesteps = 0

@@ -51,7 +51,7 @@ class Settings():
 	aux = 0
 	upplim_jthigh = 250*(np.pi/180)
 	lowlim_jthigh = 90*(np.pi/180)
-	upplim_jleg = 90*(np.pi/180)
+	upplim_jleg = 120*(np.pi/180)
 	lowlim_jleg = 0*(np.pi/180)
 	def __init__(self):
 		pass
@@ -100,6 +100,7 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 
 		for t in range(settings.max_episode_length):
 			action = model.predict(state) * settings.action_max
+			#print(action)
 			observation, reward, done, info = env.step(action)
 			if render_mode:
 				env.render("human")
