@@ -36,8 +36,8 @@ class Settings():
 	control_kp = 150.
 	control_kd = 5.
 	desired_v_low = 0.6
-	desired_v_up = 1
-	conditions_dim = 2
+	desired_v_up = 1.2
+	conditions_dim = 1
 	theta_dim = 20
 	nn_units=[16,16]
 	# nn_activations=["relu", "relu", "tanh"]  #When using tanh for bounding the output of the NN
@@ -65,7 +65,7 @@ settings = Settings()
 
 """Customized Reward Func"""
 def get_reward(reward_params, reward_tau, desired_vel, mode="linear"):
-	alive_bonus, posafter, velocity, a, w = reward_params[0], reward_params[1], reward_params[2], reward_params[3], reward_params[4]
+	alive_bonus, posafter, posbefore, velocity, a, w = reward_params[0], reward_params[1], reward_params[2], reward_params[3], reward_params[4], reward_params[5]
 	# print (w)
 	if mode == "linear1":	#Works better so far, but can not follow desired speed
 		scale = 0.5
@@ -84,17 +84,24 @@ def get_reward(reward_params, reward_tau, desired_vel, mode="linear"):
 		reward = scale*reward	
 
 	if mode == "linear2":
-		scale = 0.5
-		# print(velocity)
+		scale = 0.1
 		if velocity < 0:
-			velocity_reward = velocity
-			# velocity_reward = velocity
+			# velocity_reward = 0
+			velocity_reward = -abs(velocity)
 		elif velocity <= desired_vel:
 			velocity_reward = (velocity)/ desired_vel    
 			#print(velocity_reward) 
 		else:
-			velocity_reward = desired_vel/velocity
+			velocity_reward = - abs(velocity - desired_vel)
 			# print(velocity_reward)
+
+		angular_reward = w	
+		action_reward = -1e-2 * np.sum(a**2)
+		displacement_reward  = posafter - posbefore
+		reward = alive_bonus + 10*velocity_reward + 1*action_reward + 10*displacement_reward + 1*angular_reward
+		reward = scale*reward
+		# print("reward = {}" .format(reward))
+
 
 		settings.vel_list[settings.count] = velocity
 		settings.count += 1
@@ -151,7 +158,7 @@ def get_reward(reward_params, reward_tau, desired_vel, mode="linear"):
 		scale = 0.1
 		if velocity < 0:
 			velocity_reward = 0
-			# velocity_reward = velocity
+			# velocity_reward = -abs(velocity)
 		elif velocity <= desired_vel:
 			velocity_reward = (velocity)/ desired_vel    
 			#print(velocity_reward) 
@@ -240,7 +247,7 @@ class Policy():
 		# 		settings.aux = 0
 		# 		reward_step = 10
 		# reward_tau +=reward_step 
-		# print(reward_tau)
+		# # print(reward_tau)
 						
 		
 		reward_tau = 0
@@ -365,7 +372,8 @@ def bound_theta_sigmoid(theta):		#Add offset and restrict to range corresponding
 def simulate(model, solution, settings, desired_velocity, render_mode):
 	model.set_weights(solution) #FIX FOR EACH PAIR model-solution
 	current_speed = settings.init_vel
-	theta = model.predict(np.array([desired_velocity, current_speed]))
+	# theta = model.predict(np.array([desired_velocity, current_speed])) #When usign 2 inputs for the NN
+	theta = model.predict(current_speed)
 	# theta = bound_theta_tanh(theta)
 	theta = bound_theta_sigmoid(theta)
 	# print(theta)	
@@ -397,7 +405,8 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 			#PREDICT THETA EVERY EPISODE FOR DIFFERENT VELOCITIES TO DO THE TRAINING
 			current_speed = state[8]	#current velocity of hip
 			if last_speed is None or (current_speed - last_speed) < 1e-2: 
-				theta = model.predict(np.array([desired_velocity, current_speed]))
+				# theta = model.predict(np.array([desired_velocity, current_speed])) #When usign 2 inputs for the NN
+				theta = model.predict(current_speed)
 				# theta = bound_theta_tanh(theta)
 				theta = bound_theta_sigmoid(theta)
 				# print(theta)
