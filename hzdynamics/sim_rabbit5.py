@@ -45,8 +45,8 @@ def save_plot(tau_right, tau_left, qd, qdotd):
     j4d.write("%.2f\r\n" %(qdotd[3]))
 
 def pid_init():
-    Kp = 120
-    Kd = 2
+    Kp = 150        # 5 for 0.75m/s ; 180 for 0.0.85m/s ;  ;180 for 1 m/s
+    Kd = 5          # 5 for 0.75m/s ; 7 for 0.0.85m/s ;  ;9 for 1 m/s
     return Kp, Kd
 
 def controller_update(qd, qdotd, q, qdot, Kp, Kd):
@@ -56,7 +56,7 @@ def controller_update(qd, qdotd, q, qdot, Kp, Kd):
     return output
     
 env = gym.make('Rabbit-v0')
-env.assign_desired_vel(desired_vel = 2)
+env.assign_desired_vel(desired_vel = 1)
 #print(env.desired_vel)
 env.reset()
 
@@ -74,8 +74,10 @@ for i in range(1000):
 
 aux = 0
 bnd_ctrl_act = 4
-
 init_plot()
+
+
+
 
 iter = 20
 for k in range(iter):
@@ -91,7 +93,7 @@ for k in range(iter):
         tau_right = np.clip(trajectory.tau_Right(pos,p), 0, 1.05)
         tau_left = np.clip(trajectory.tau_Left(pos,p), 0, 1.05)	
 
-        if tau_right > 1.0:
+        if tau_right > 1.0 and aux == 0:
             aux = 1
         
         if aux == 0:
@@ -101,7 +103,7 @@ for k in range(iter):
         else:
             qd = trajectory.yd_time_LeftStance(pos,a_leftS,p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
             qdotd = trajectory.d1yd_time_LeftStance(pos,vel,a_leftS,p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
-            if tau_left > 1.0:
+            if tau_left > 1.0 and aux ==1:
                 aux = 0
 
         save_plot(tau_right, tau_left, qd, qdotd)
@@ -116,10 +118,8 @@ for k in range(iter):
         qdot = np.array([vel[3], vel[4], vel[5], vel[6]]) #Take the current velocity state of the actuated joints and assign them to vector which will be used to compute the error   
 
         action = controller_update(qd, qdotd, q, qdot, Kp, Kd)
-        #action = np.array([-1, -1, -1, -1])
-        #action = np.array([1, 1, 1, 1])
         action = np.clip(action,-bnd_ctrl_act,bnd_ctrl_act)
-        #print(action)
+        # print(action)
         observation, _reward, done, _info = env.step(action)
         #print(observation)
 

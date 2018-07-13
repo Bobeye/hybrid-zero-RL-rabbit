@@ -16,7 +16,7 @@ import json
 import os
 import numpy as np
 
-from rabbit_estrain import settings, Policy, make_env, sigmoid, bound_theta_tanh, bound_theta_sigmoid, init_plot
+from rabbit_estrain import settings, Policy, make_env, sigmoid, bound_theta_tanh, bound_theta_sigmoid, init_plot, get_reward
 
 
 def load_model(filename):
@@ -27,13 +27,14 @@ def load_model(filename):
     return model_params	
 
 if __name__ == "__main__":
-	policy_path = "log/"+"/policy/22.json"
+	policy_path = "log/"+"/policy/143.json" #24 better than 58
 
 	render_mode = True
-	eval_mode = False	
+	eval_mode = True	
 	init_plot()
 
 	desired_velocity = 0.8
+	settings.control_kd = 10
 	current_speed = settings.init_vel
 	
 	model = NeuralNetwork(input_dim=settings.conditions_dim,
@@ -44,7 +45,8 @@ if __name__ == "__main__":
 	model_params = load_model(policy_path)
 	model.set_weights(model_params)
 	theta = model.predict(np.array([desired_velocity, current_speed]))
-	theta = bound_theta_tanh(theta)	
+	# theta = bound_theta_tanh(theta)	
+	theta = bound_theta_sigmoid(theta)
 	print (theta)
 
 	pi = Policy(theta=theta, action_size=settings.action_size, 
@@ -69,8 +71,8 @@ if __name__ == "__main__":
 			#print(current_speed)
 			if last_speed is None or (current_speed - last_speed) < 1e-2: 
 				theta = model.predict(np.array([desired_velocity, current_speed]))
-				theta = bound_theta_tanh(theta)
-				#theta = bound_theta_sigmoid(theta)
+				# theta = bound_theta_tanh(theta)
+				theta = bound_theta_sigmoid(theta)
 				#print(theta)
 				last_speed = current_speed
 			# else:
@@ -80,8 +82,10 @@ if __name__ == "__main__":
 						action_min=settings.action_min, action_max=settings.action_max,
 						kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency)
 
-			action = pi.get_action(state, eval_mode)
-			observation, reward, done, info = env.step(action)
+			action, tau_reward = pi.get_action(state, eval_mode)
+			observation, reward_params, done, info = env.step(action)
+			reward = get_reward(reward_params, tau_reward, desired_velocity, mode="tau")
+
 			state = observation
 			velocity_list += [state[7]]
 			total_reward += reward
@@ -89,8 +93,8 @@ if __name__ == "__main__":
 
 			if render_mode:
 				env.render()
-			# if done:
-			# 	break
+			if done:
+				break
 		total_reward_list += [np.array([total_reward]).flatten()]
 	state = env.reset()
 	total_rewards = np.array(total_reward_list)
