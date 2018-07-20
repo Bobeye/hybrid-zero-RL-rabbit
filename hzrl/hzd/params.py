@@ -26,3 +26,4 @@ a_leftS = np.array([a_rightS[2], a_rightS[3], a_rightS[0], a_rightS[1],
 p = np.array([0.2517, -0.2])
 
 q = np.array([-0.2000, 0.7546, 0.1675, 2.4948, 0.4405, 3.1894, 0.2132])
+
