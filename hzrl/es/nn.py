@@ -28,7 +28,7 @@ class NeuralNetwork():
 			elif act == "passthru":
 				self.activations += [passthru]
 			else:
-				self.activations + [tanh]
+				self.activations += [tanh]
 
 		unit_list = [input_dim]
 		for u in self.units:
