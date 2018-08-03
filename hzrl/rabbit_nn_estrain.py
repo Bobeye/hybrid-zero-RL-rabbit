@@ -16,6 +16,8 @@ import json
 import os
 import numpy as np
 
+from rabbit_estrain import get_reward
+
 
 """Hyperparameters"""
 class Settings():
@@ -27,20 +29,16 @@ class Settings():
 	frequency = 20.
 	total_threshold = 1e8
 	num_episode = 5
-	max_episode_length=1000
+	max_episode_length=1600
 	batch_mode="mean"
 	state_size = 14
 	action_size = 4
 	action_min = -4.
 	action_max = 4.
-	control_kp = 120.
-	control_kd = 2.
 	desired_v_low = 0.6
-	desired_v_up = 1
-	conditions_dim = 2
-	theta_dim = 24
-	nn_units=[16,16]
-	nn_activations=["relu", "relu", "tanh"]
+	desired_v_up = 1	
+	nn_units=[16,16,16,16]
+	nn_activations=["relu", "relu", "relu", "relu", "tanh"]
 	population = 24
 	sigma_init=0.1
 	sigma_decay=0.9999 
@@ -48,11 +46,6 @@ class Settings():
 	learning_rate=0.01
 	learning_rate_decay=0.9999 
 	learning_rate_limit=1e-6
-	aux = 0
-	upplim_jthigh = 250*(np.pi/180)
-	lowlim_jthigh = 90*(np.pi/180)
-	upplim_jleg = 120*(np.pi/180)
-	lowlim_jleg = 0*(np.pi/180)
 	def __init__(self):
 		pass
 settings = Settings()
@@ -102,6 +95,8 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 			action = model.predict(state) * settings.action_max
 			#print(action)
 			observation, reward, done, info = env.step(action)
+			# reward = get_reward(reward_params, reward_tau, desired_velocity, mode="linear1")
+
 			if render_mode:
 				env.render("human")
 			state = observation
@@ -110,6 +105,8 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 			action_list += [action]
 			reward_list += [reward]
 			termination_list += [done]
+			timesteps += 1
+
 			if done:
 				break
 
@@ -125,11 +122,6 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 	# 	env.close()
 	
 	return [rewards, timesteps]
-
-
- # SIGMOID``
-def sigmoid(x):
-	return 1 / (1 + np.exp(-x))
 
 if __name__ == "__main__":
 

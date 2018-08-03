@@ -34,14 +34,13 @@ class Settings():
 	action_min = -4.
 	action_max = 4.
 	control_kp = 150.
-	control_kd = 5.
-	desired_v_low = 0.7
-	desired_v_up = 1.1
-	conditions_dim = 1
+	control_kd = 7.
+	desired_v_low = 1.
+	desired_v_up = 1.
+	conditions_dim = 3
 	theta_dim = 20
 	nn_units=[16,16]
-	# nn_activations=["relu", "relu", "tanh"]  #When using tanh for bounding the output of the NN
-	nn_activations=["relu", "relu", "passthru"]  #When using sigmoid for bounding the output of the NN 
+	nn_activations=["relu", "relu", "passthru"]
 	population = 24
 	sigma_init=0.1
 	sigma_decay=0.9999 
@@ -54,62 +53,46 @@ class Settings():
 	lowlim_jthigh = 90*(np.pi/180)
 	upplim_jleg = 120*(np.pi/180)
 	lowlim_jleg = 0*(np.pi/180)
-	eval_mode = False
+	plot_mode = False
 	sigmoid_slope = 1
-	init_vel = 0.3769 + 0.05*np.random.uniform(low=-.005, high=.005, size=1)
-	vel_list = np.zeros(20)
-	count = 0
+	init_vel = 0.7743
+	size_vel_buffer = 10
 	def __init__(self):
 		pass
 settings = Settings()
 
 """Customized Reward Func"""
-def get_reward(reward_params, reward_tau, desired_vel, mode="linear"):
+def get_reward(reward_params, reward_tau, desired_vel, current_vel_av, sum_error, mode="linear1"):
 	alive_bonus, posafter, posbefore, velocity, a, w = reward_params[0], reward_params[1], reward_params[2], reward_params[3], reward_params[4], reward_params[5]
-	# print (w)
+	# print (desired_vel)
+	# print (velocity)
 	if mode == "linear1":	#Works better so far, but can not follow desired speed
-		scale = 0.5
+		scale = 0.1
 		if velocity < 0:
 			velocity_reward = 0
-			# velocity_reward = velocity
 		elif velocity <= desired_vel:
-			velocity_reward = (velocity)/ desired_vel    
-			#print(velocity_reward) 
+			velocity_reward = (velocity/desired_vel)**2
 		else:
-			velocity_reward = desired_vel/velocity
-			# print(velocity_reward)
+			velocity_reward = (desired_vel/velocity)**2
+
 		action_reward = -1e-2 * np.sum(a**2)
 		displacement_reward  = posafter
-		reward = alive_bonus + 1*velocity_reward + 1*action_reward + 1*displacement_reward
+		reward = alive_bonus + 10*velocity_reward + 1*action_reward + 1*displacement_reward + 0.5*sum_error
 		reward = scale*reward	
 
 	if mode == "linear2":
 		scale = 0.1
-		if velocity < 0:
-			# velocity_reward = 0
-			velocity_reward = -abs(velocity)
-		elif velocity <= desired_vel:
-			velocity_reward = (velocity)/ desired_vel    
-			#print(velocity_reward) 
+		if current_vel_av < 0:
+			velocity_reward = 0
+		elif current_vel_av <= desired_vel:
+			velocity_reward = (current_vel_av/desired_vel)**2
 		else:
-			velocity_reward = - abs(velocity - desired_vel)
-			# print(velocity_reward)
+			velocity_reward = (desired_vel/current_vel_av)**2
 
-		angular_reward = w	
 		action_reward = -1e-2 * np.sum(a**2)
-		displacement_reward  = posafter - posbefore
-		reward = alive_bonus + 10*velocity_reward + 1*action_reward + 10*displacement_reward + 1*angular_reward
-		reward = scale*reward
-		# print("reward = {}" .format(reward))
-
-
-		settings.vel_list[settings.count] = velocity
-		settings.count += 1
-		if settings.count == 20:
-			settings.count = 0
-
-		ave_vel = np.mean(settings.vel_list)
-		# print("ave_vel = {}" .format(ave_vel))
+		displacement_reward  = posafter
+		reward = alive_bonus + 10*velocity_reward + 1*action_reward + 1*displacement_reward
+		reward = scale*reward	
 
 		action_reward = -1e-2 * np.sum(a**2)
 		displacement_reward  = posafter
@@ -182,18 +165,19 @@ def get_reward(reward_params, reward_tau, desired_vel, mode="linear"):
 MIN_NUM = float('-inf')
 MAX_NUM = float('inf')
 class PID(object):
-    def __init__(self, kp, ki, kd, mn=MIN_NUM, mx=MAX_NUM):
-        self.kp = kp
-        self.ki = ki
-        self.kd = kd
-        self.min = mn
-        self.max = mx
+	def __init__(self, kp, ki, kd, mn=MIN_NUM, mx=MAX_NUM):
+		self.kp = kp
+		self.ki = ki
+		self.kd = kd
+		self.min = mn
+		self.max = mx
 
-    def step(self, qd, qdotd, q, qdot):
-    	error_pos = qd - q
-    	error_vel = qdotd - qdot
-    	output = self.kp*error_pos + self.kd*error_vel
-    	return np.clip(output, self.min, self.max)
+	def step(self, qd, qdotd, q, qdot):
+		error_pos = qd - q
+		error_vel = qdotd - qdot
+		output = self.kp*error_pos + self.kd*error_vel
+		# print([self.kp, self.kd])
+		return np.clip(output, self.min, self.max)
 
 """The policy defined by theta. Theta is calculated through a NN given desired conditions."""
 class Policy():
@@ -201,7 +185,7 @@ class Policy():
 				 action_size=4,
 				 action_min=-4.,
 				 action_max=4.,
-				 kp=120, kd=2, feq=20.):
+				 kp=120., kd=2., feq=20., mode="hzdrl"):
 		self.theta = theta
 		self.make_theta()
 		self.action_size = action_size
@@ -210,10 +194,11 @@ class Policy():
 		self.sample_time = 1/feq
 		self.pid = PID(kp, 0., kd, mn=np.full((action_size,),action_min), 
 								   mx=np.full((action_size,),action_max))
-		self.p = np.array([0.2517, -0.2])
+		self.p = params.p
+		self.mode = mode
 
 	def make_theta(self):
-		self.a_rightS = np.append(self.theta[0:20], [self.theta[2], self.theta[3], self.theta[0], self.theta[1]])
+		self.a_rightS = np.append(self.theta, [self.theta[2], self.theta[3], self.theta[0], self.theta[1]])
 		# print("a_rightS = {}" .format(self.a_rightS))
 		self.a_leftS = np.array([self.a_rightS[2], self.a_rightS[3], self.a_rightS[0], self.a_rightS[1],
 						self.a_rightS[6], self.a_rightS[7], self.a_rightS[4], self.a_rightS[5],
@@ -225,94 +210,118 @@ class Policy():
 	def get_action_star(self, state):
 		pass
 
-	def get_action(self, state, eval_mode = False):
+	def get_action(self, state, plot_mode = False):
 		pos, vel = state[0:7], state[7:14]
 		tau_right = np.clip(trajectory.tau_Right(pos,self.p), 0, 1.05)
-		tau_left = np.clip(trajectory.tau_Left(pos,self.p), 0, 1.05)	
+		tau_left = np.clip(trajectory.tau_Left(pos,self.p), 0, 1.05)
 		
-		# reward_tau = 0
-		# reward_step = 0
-		# if tau_right > 1.0 and settings.aux == 0:
-		# 	settings.aux = 1
-		# 	reward_step = 10
-		# if settings.aux == 0:
-		# 	qd, tau = trajectory.yd_time_RightStance(pos,params.a_rightS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
-		# 	qdotd = trajectory.d1yd_time_RightStance(pos,vel,params.a_rightS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
-		# 	reward_tau = tau_right
-		# else:
-		# 	qd = trajectory.yd_time_LeftStance(pos,params.a_leftS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
-		# 	qdotd = trajectory.d1yd_time_LeftStance(pos,vel,params.a_leftS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
-		# 	reward_tau = tau_left
-		# 	if tau_left > 1.0 and settings.aux == 1:
-		# 		settings.aux = 0
-		# 		reward_step = 10
-		# reward_tau +=reward_step 
-		# # print(reward_tau)
-						
-		
-		reward_tau = 0
-		reward_step = 0
-		if tau_right > 1.0 and settings.aux == 0:
-			settings.aux = 1
-			reward_step = 10
-		if settings.aux == 0:
-			qd, tau = trajectory.yd_time_RightStance(pos,self.a_rightS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
-			qdotd = trajectory.d1yd_time_RightStance(pos,vel,self.a_rightS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
-			reward_tau = tau_right
-		else:
-			qd = trajectory.yd_time_LeftStance(pos,self.a_leftS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
-			qdotd = trajectory.d1yd_time_LeftStance(pos,vel,self.a_leftS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
-			reward_tau = tau_left
-			if tau_left > 1.0 and settings.aux == 1:
-				settings.aux = 0
+		if self.mode == "hzd": 
+			reward_tau = 0
+			reward_step = 0
+			if tau_right > 1.0 and settings.aux == 0:
+				settings.aux = 1
 				reward_step = 10
-		reward_tau +=reward_step 
-		# print(reward_tau)
-
-		if eval_mode:
-			save_plot(tau_right, tau_left, qd, qdotd)			
+			if settings.aux == 0:
+				qd, tau = trajectory.yd_time_RightStance(pos,params.a_rightS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+				qdotd = trajectory.d1yd_time_RightStance(pos,vel,params.a_rightS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
+				reward_tau = tau_right
+			else:
+				qd = trajectory.yd_time_LeftStance(pos,params.a_leftS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+				qdotd = trajectory.d1yd_time_LeftStance(pos,vel,params.a_leftS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
+				reward_tau = tau_left
+				if tau_left > 1.0 and settings.aux == 1:
+					settings.aux = 0
+					reward_step = 10
+			reward_tau +=reward_step 
+			# print(reward_tau)
+						
+		if self.mode == "hzdrl": 
+			reward_tau = 0
+			reward_step = 0
+			if tau_right > 1.0 and settings.aux == 0:
+				settings.aux = 1
+				reward_step = 10
+			if settings.aux == 0:
+				qd, tau = trajectory.yd_time_RightStance(pos,self.a_rightS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+				qdotd = trajectory.d1yd_time_RightStance(pos,vel,self.a_rightS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
+				reward_tau = tau_right
+			else:
+				qd = trajectory.yd_time_LeftStance(pos,self.a_leftS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
+				qdotd = trajectory.d1yd_time_LeftStance(pos,vel,self.a_leftS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
+				reward_tau = tau_left
+				if tau_left > 1.0 and settings.aux == 1:
+					settings.aux = 0
+					reward_step = 10
+			reward_tau +=reward_step 
+				# print(reward_tau)
+		
+		if plot_mode:
+			save_plot_1(tau_right, tau_left, qd, qdotd)			
 
 		q = np.array([pos[3], pos[4], pos[5], pos[6]])    #Take the current position state of the actuated joints and assign them to vector which will be used to compute the error
 		qdot = np.array([vel[3], vel[4], vel[5], vel[6]]) #Take the current velocity state of the actuated joints and assign them to vector which will be used to compute the error
 		action = self.pid.step(qd, qdotd, q, qdot)
+		# print([qd, qdotd, q, qdot, action])
 
 		return action, reward_tau
 
 def init_plot():
-    tau_R = open("plots/tauR_data.txt","w+")     #Create text files to save the data o
-    tau_L = open("plots/tauL_data.txt","w+")
-    j1 = open("plots/j1_data.txt","w+")
-    j2 = open("plots/j2_data.txt","w+")
-    j3 = open("plots/j3_data.txt","w+")
-    j4 = open("plots/j4_data.txt","w+")
-    j1d = open("plots/j1d_data.txt","w+")
-    j2d = open("plots/j2d_data.txt","w+")
-    j3d = open("plots/j3d_data.txt","w+")
-    j4d = open("plots/j4d_data.txt","w+")
+	tau_R = open("plots/tauR_data.txt","w+")     #Create text files to save the data for q and qdot desired (output of the trajectory functions)
+	tau_L = open("plots/tauL_data.txt","w+")
+	j1d = open("plots/j1d_data.txt","w+")			 
+	j2d = open("plots/j2d_data.txt","w+")
+	j3d = open("plots/j3d_data.txt","w+")
+	j4d = open("plots/j4d_data.txt","w+")
+	j1dotd = open("plots/j1dotd_data.txt","w+")	
+	j2dotd = open("plots/j2dotd_data.txt","w+")
+	j3dotd = open("plots/j3dotd_data.txt","w+")
+	j4dotd = open("plots/j4dotd_data.txt","w+")
+	hip_pos = open("plots/hip_pos_data.txt","w+")	#Create text files to save the data for the current state (hip  + joints)
+	hip_vel = open("plots/hip_vel_data.txt","w+")
+	j1pos = open("plots/j1_pos_data.txt","w+")
+	j2pos = open("plots/j2_pos_data.txt","w+")
+	j3pos = open("plots/j3_pos_data.txt","w+")
+	j4pos = open("plots/j4_pos_data.txt","w+")
 
-def save_plot(tau_right, tau_left, qd, qdotd):
-    tau_R = open("plots/tauR_data.txt","a")     #Create text files to save the data o
-    tau_L = open("plots/tauL_data.txt","a")
-    j1 = open("plots/j1_data.txt","a")
-    j2 = open("plots/j2_data.txt","a")
-    j3 = open("plots/j3_data.txt","a")
-    j4 = open("plots/j4_data.txt","a")
-    j1d = open("plots/j1d_data.txt","a")
-    j2d = open("plots/j2d_data.txt","a")
-    j3d = open("plots/j3d_data.txt","a")
-    j4d = open("plots/j4d_data.txt","a")
+def save_plot_1(tau_right, tau_left, qd, qdotd):
+	tau_R = open("plots/tauR_data.txt","a")     #Save the data in each iteration
+	tau_L = open("plots/tauL_data.txt","a")
+	j1d = open("plots/j1d_data.txt","a")
+	j2d = open("plots/j2d_data.txt","a")
+	j3d = open("plots/j3d_data.txt","a")
+	j4d = open("plots/j4d_data.txt","a")
+	j1dotd = open("plots/j1dotd_data.txt","a")
+	j2dotd = open("plots/j2dotd_data.txt","a")
+	j3dotd = open("plots/j3dotd_data.txt","a")
+	j4dotd = open("plots/j4dotd_data.txt","a")
 
-    tau_R.write("%.2f\r\n" %(tau_right))
-    tau_L.write("%.2f\r\n" %(tau_left))
-    j1.write("%.2f\r\n" %(qd[0]))
-    j2.write("%.2f\r\n" %(qd[1]))
-    j3.write("%.2f\r\n" %(qd[2]))
-    j4.write("%.2f\r\n" %(qd[3]))
-    j1d.write("%.2f\r\n" %(qdotd[0]))
-    j2d.write("%.2f\r\n" %(qdotd[1]))
-    j3d.write("%.2f\r\n" %(qdotd[2]))
-    j4d.write("%.2f\r\n" %(qdotd[3]))
+	tau_R.write("%.2f\r\n" %(tau_right))
+	tau_L.write("%.2f\r\n" %(tau_left))
+	j1d.write("%.2f\r\n" %(qd[0]))
+	j2d.write("%.2f\r\n" %(qd[1]))
+	j3d.write("%.2f\r\n" %(qd[2]))
+	j4d.write("%.2f\r\n" %(qd[3]))
+	j1dotd.write("%.2f\r\n" %(qdotd[0]))
+	j2dotd.write("%.2f\r\n" %(qdotd[1]))
+	j3dotd.write("%.2f\r\n" %(qdotd[2]))
+	j4dotd.write("%.2f\r\n" %(qdotd[3]))
 
+def save_plot_2(state):
+	hip_pos = open("plots/hip_pos_data.txt","a")	#Create text files to save the data for the current state (hip  + joints)
+	hip_vel = open("plots/hip_vel_data.txt","a")
+	j1pos = open("plots/j1_pos_data.txt","a")
+	j2pos = open("plots/j2_pos_data.txt","a")
+	j3pos = open("plots/j3_pos_data.txt","a")
+	j4pos = open("plots/j4_pos_data.txt","a")
+
+	hip_pos.write("%.2f\r\n" %(state[0]))
+	hip_vel.write("%.2f\r\n" %(state[7]))
+	j1pos.write("%.2f\r\n" %(state[3]))
+	j2pos.write("%.2f\r\n" %(state[4]))
+	j3pos.write("%.2f\r\n" %(state[5]))
+	j4pos.write("%.2f\r\n" %(state[6]))
+
+	
 def make_log(txt_log, policy_path):
 	if not os.path.exists(policy_path):
 		os.makedirs(policy_path)
@@ -372,62 +381,68 @@ def bound_theta_sigmoid(theta):		#Add offset and restrict to range corresponding
 def simulate(model, solution, settings, desired_velocity, render_mode):
 	model.set_weights(solution) #FIX FOR EACH PAIR model-solution
 	current_speed = settings.init_vel
-	# theta = model.predict(np.array([desired_velocity, current_speed])) #When usign 2 inputs for the NN
-	theta = model.predict(current_speed)
+	current_speed_list = np.zeros(settings.size_vel_buffer)
+	error = np.zeros(settings.size_vel_buffer)
+	error[0] = desired_velocity - current_speed 
+	inputs_nn = np.array([current_speed, desired_velocity, sum(error)])
+	theta = model.predict(inputs_nn)
+
 	# theta = bound_theta_tanh(theta)
 	theta = bound_theta_sigmoid(theta)
+	print(theta)
 	# print(theta)	
+
 	pi = Policy(theta=theta, action_size=settings.action_size, 
 				action_min=settings.action_min, action_max=settings.action_max,
-				kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency)
-				
+				kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency, mode="hzdrl")
 	env = make_env(settings.env_name, render_mode=render_mode, desired_velocity = desired_velocity)
-	
-	total_reward_list = []
-	timesteps = 0
-	state_list = []
-	action_list = []
-	reward_list = []
-	termination_list = []
 
-	last_speed = None
+	total_reward_list = [];	timesteps = 0;	state_list = [];	action_list = [];	reward_list = [];	termination_list = [];	last_speed = None
 
 	for episode in range(settings.num_episode):	
 		# print (episode)
 		state = env.reset()
-
+		# print(state)
 		if state is None:
 			state = np.zeros(settings.state_size)
 		total_reward = 0
 
 		for t in range(settings.max_episode_length):
-			
+			timesteps += 1
+			if render_mode:
+				env.render("human")
 			#PREDICT THETA EVERY EPISODE FOR DIFFERENT VELOCITIES TO DO THE TRAINING
-			current_speed = state[8]	#current velocity of hip
-			if last_speed is None or (current_speed - last_speed) < 1e-2: 
-				# theta = model.predict(np.array([desired_velocity, current_speed])) #When usign 2 inputs for the NN
-				theta = model.predict(current_speed)
+			#current_speed = state[7]	#current velocity of hip
+			
+			current_speed = state[7]
+			current_speed_list = np.roll(current_speed_list,1)
+			current_speed_list[0] = current_speed
+			current_speed_av = np.mean(current_speed_list)
+
+			error = np.roll(error,1)
+			error[0] = desired_velocity - current_speed 
+			sum_error = sum(error)
+
+			if last_speed is None or (current_speed - last_speed) < 1e-1: # 1e-2
+				inputs_nn = np.array([current_speed, desired_velocity, sum(error)])	
+				theta = model.predict(inputs_nn)
 				# theta = bound_theta_tanh(theta)
-				theta = bound_theta_sigmoid(theta)
+				theta = bound_theta_sigmoid(theta)	
 				# print(theta)
-				last_speed = current_speed	
+				last_speed = current_speed
 			# print (current_speed)
 			pi = Policy(theta=theta, action_size=settings.action_size, 
 						action_min=settings.action_min, action_max=settings.action_max,
-						kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency)
+						kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency, mode = "hzdrl")
 
+			
 
-			timesteps += 1
-			action, reward_tau = pi.get_action(state, settings.eval_mode)
-
+			action, reward_tau = pi.get_action(state, settings.plot_mode)
 			observation, reward_params, done, info = env.step(action)
-			reward = get_reward(reward_params, reward_tau, desired_velocity, mode="tau")
-
-
-			if render_mode:
-				env.render("human")
-
+			reward = get_reward(reward_params, reward_tau, desired_velocity, current_speed_av, sum_error, mode="linear1")
 			state = observation
+			if settings.plot_mode:
+				save_plot_2(state)			
 			total_reward += reward
 			state_list += [state.flatten()]
 			action_list += [action]
@@ -437,7 +452,6 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 				break
 
 		total_reward_list += [np.array([total_reward]).flatten()]
-	state = env.reset()
 
 	total_rewards = np.array(total_reward_list)
 	if settings.batch_mode == "min":
@@ -446,7 +460,7 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 		rewards = np.mean(total_rewards)
 	# if render_mode:
 	# 	env.close()
-	
+
 	return [rewards, timesteps]
 
 
@@ -459,22 +473,22 @@ if __name__ == "__main__":
 					 	  output_dim=settings.theta_dim,
 					 	  units=settings.nn_units,
 					 	  activations=settings.nn_activations)
-	# Adopt OpenAI ES
-	escls = OpenES(model.parameter_count, 
-				   sigma_init=settings.sigma_init, 
-				   sigma_decay=settings.sigma_decay, 
-				   sigma_limit=settings.sigma_limit, 
-				   learning_rate=settings.learning_rate,
-				   learning_rate_decay=settings.learning_rate_decay, 
-				   learning_rate_limit=settings.learning_rate_limit,
-				   popsize=settings.population, 
-				   antithetic=True)
+	# # Adopt OpenAI ES
+	# escls = OpenES(model.parameter_count, 
+	# 			   sigma_init=settings.sigma_init, 
+	# 			   sigma_decay=settings.sigma_decay, 
+	# 			   sigma_limit=settings.sigma_limit, 
+	# 			   learning_rate=settings.learning_rate,
+	# 			   learning_rate_decay=settings.learning_rate_decay, 
+	# 			   learning_rate_limit=settings.learning_rate_limit,
+	# 			   popsize=settings.population, 
+	# 			   antithetic=True)
 
 	# Adopt CMA-ES
-	# escls = CMAES(model.parameter_count,
-	# 			  sigma_init=settings.sigma_init,
-	# 			  popsize=settings.population,
-	# 			  weight_decay=settings.sigma_decay)
+	escls = CMAES(model.parameter_count,
+				  sigma_init=settings.sigma_init,
+				  popsize=settings.population,
+				  weight_decay=settings.sigma_decay)
 
 	step = 0
 	total_timesteps = 0
@@ -489,12 +503,14 @@ if __name__ == "__main__":
 					 	  	  units=settings.nn_units,
 					 	  	  activations=settings.nn_activations)
 			models += [m]
-		#print (models)	
-		desired_velocities = np.random.uniform(low=settings.desired_v_low, 
-											   high=settings.desired_v_up, 
-											   size=(settings.population,))
+
 		
-		#print(desired_velocities)
+		# desired_velocities = np.random.uniform(low=settings.desired_v_low, 
+		# 									   high=settings.desired_v_up, 
+		# 									   size=(settings.population,))
+		
+		desired_velocities = np.array([0.8, 1.2, 1.2, 1.2, 0.8, 0.8, 1.2,1.2, 0.8, 0.8, 1.2, 0.8, 0.8, 0.8, 1.2, 1.2, 0.8, 0.8, 0.8, 1.2,0.8, 1.2, 0.8, 0.8])
+
 
 		# desired_velocities = np.zeros(settings.population,) + 2.
 		render_mode = False

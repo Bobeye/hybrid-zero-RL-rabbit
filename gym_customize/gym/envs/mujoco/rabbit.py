@@ -10,16 +10,15 @@ class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.count = 0
 
     def step(self, a):
-        scale = 0.5     
+        scale = 0.1     
         posbefore = self.sim.data.qpos[0]
         self.do_simulation(a, self.frame_skip)
 
-        posafter, height, ang = self.sim.data.qpos[0:3] 
+        posafter, height, ang = self.sim.data.qpos[0:3]
         alive_bonus = 1.0
         # velocity = (posafter - posbefore) / self.dt
         velocity = self.sim.data.qvel[0]    #hip velocity
-        w = self.sim.data.qvel[2]
-
+        w = self.sim.data.qvel[2]           # hip angular velocity
 
         done = False
         s = self.state_vector()
@@ -32,8 +31,9 @@ class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         if abs(ang) > 1:    
             done = True
             #print("done 3")
-        
-        if abs(velocity) <= 1e-3: #detecting stuck:
+
+        # TODO: detecting stuck:
+        if abs(velocity) <= 1e-3:
             self.freeze += 1
         else:
             self.freeze = 0     
@@ -44,8 +44,8 @@ class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
         ob = self._get_obs()
         reward_params = [alive_bonus, posafter, posbefore, velocity, a, w]
-        # return ob, reward, done, {}
         return ob, reward_params, done, {}
+
 
 
     def _get_obs(self):
@@ -57,10 +57,10 @@ class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def reset_model(self):
         init_pos = np.array([-0.2000, 0.7546, 0.1675, 2.4948, 0.4405, 3.1894, 0.2132])
         init_vel = np.array([0.7743, 0.2891, 0.3796, 1.1377, -0.9273, -0.1285, 1.6298])
-        qpos = init_pos + self.np_random.uniform(low=-.05, high=.05, size=self.model.nq)
-        qvel = init_vel + self.np_random.uniform(low=-.05, high=.05, size=self.model.nv)
-        # qpos = init_pos
-        # qvel = init_vel
+        #qpos = init_pos + self.np_random.uniform(low=-.005, high=.005, size=self.model.nq)
+        #qvel = init_vel + self.np_random.uniform(low=-.005, high=.005, size=self.model.nv)
+        qpos = init_pos
+        qvel = init_vel
         self.set_state(qpos, qvel)
         return self._get_obs()
 
