@@ -27,19 +27,20 @@ def load_model(filename):
     return model_params	
 
 if __name__ == "__main__":
-	policy_path = "log/"+"/policy/20.json"
+	policy_path = "log/"+"/policy/32.json"
 
 	render_mode = True
 	plot_mode = False
-	record_mode = True
+	record_mode = False
+	settings.plot_mode = False
 	
 	if plot_mode:
 		init_plot()
 
 	desired_velocity = 0.6
+	settings.control_kp = 150
 	settings.control_kd = 7
 	current_speed = settings.init_vel
-	
 	model = NeuralNetwork(input_dim=settings.conditions_dim,
 					 	  output_dim=settings.theta_dim,
 					 	  units=settings.nn_units,
@@ -47,7 +48,14 @@ if __name__ == "__main__":
 	#Obtain theta from .json file's data
 	model_params = load_model(policy_path)
 	model.set_weights(model_params)
-	theta = model.predict(np.array([desired_velocity, current_speed]))
+
+	current_speed = settings.init_vel
+	current_speed_list = np.zeros(settings.size_vel_buffer)
+	error = np.zeros(settings.size_vel_buffer)
+	error[0] = desired_velocity - current_speed 
+	inputs_nn = np.array([current_speed, desired_velocity, sum(error)])
+
+	theta = model.predict(inputs_nn)
 	# theta = bound_theta_tanh(theta)
 	theta = bound_theta_sigmoid(theta)	
 	print(theta)
@@ -69,31 +77,37 @@ if __name__ == "__main__":
 		if state is None:
 			state = np.zeros(settings.state_size)
 		total_reward = 0
-		for t in range(settings.max_episode_length*2):
+		for t in range(settings.max_episode_length):
 			timesteps += 1
 			if render_mode:
 				env.render()
 				
-			current_speed = abs(state[7])	#current velocity of hip
-			# print(current_speed)
-			#print(current_speed)
-			if last_speed is None or (current_speed - last_speed) < 1e-2: 
-				theta = model.predict(np.array([desired_velocity, current_speed]))
+			current_speed = state[7]
+			current_speed_list = np.roll(current_speed_list,1)
+			current_speed_list[0] = current_speed
+			current_speed_av = np.mean(current_speed_list)
+
+			error = np.roll(error,1)
+			error[0] = desired_velocity - current_speed
+			sum_error = sum(error) 
+
+			if last_speed is None or (current_speed - last_speed) < 1e-1: 
+				inputs_nn = np.array([current_speed, desired_velocity, sum(error)])	
+				theta = model.predict(inputs_nn)
 				# theta = bound_theta_tanh(theta)
 				theta = bound_theta_sigmoid(theta)
-				#print(theta)
 				last_speed = current_speed
 			# else:
 			# 	print("Exception")
 				
 			pi = Policy(theta=theta, action_size=settings.action_size, 
 						action_min=settings.action_min, action_max=settings.action_max,
-						kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency, mode="hzdrl")
+						kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency, mode="hzdrl") #Use mode="hzd" to run the hzd controller, and mode="hzdrl" to run the learned controller
 
 			action, reward_tau = pi.get_action(state, settings.plot_mode)
 			observation, reward_params, done, info = env.step(action)
-			reward = get_reward(reward_params, reward_tau, desired_velocity, mode="quadratic")
-
+			reward = get_reward(reward_params, reward_tau, desired_velocity, current_speed_av, sum_error, mode="linear1")
+			# print(action)
 			state = observation
 			velocity_list += [state[7]]
 			total_reward += reward
@@ -117,7 +131,8 @@ if __name__ == "__main__":
 	else:
 		rewards = np.mean(total_rewards)
 	print (total_reward_list, rewards)
-	velocity_list_new = velocity_list[500:1000]
+	velocity_list_new = velocity_list[500:1500]
+	# print(np.size(velocity_list))
 	# velocity_list_new = velocity_list
 	vel_mean = np.sum(velocity_list_new)/np.size(velocity_list_new)
 	print(vel_mean, np.amin(velocity_list), np.amax(velocity_list))
