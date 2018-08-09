@@ -25,7 +25,7 @@ class Settings():
 	backend = "multiprocessing"
 	n_jobs = 8
 	frequency = 20.
-	total_threshold = 1e8
+	total_threshold = 2e8
 	num_episode = 5
 	max_episode_length=1600
 	batch_mode="mean"
@@ -37,10 +37,10 @@ class Settings():
 	control_kd = 7.
 	desired_v_low = 1.
 	desired_v_up = 1.
-	conditions_dim = 3
-	theta_dim = 20
+	conditions_dim = 3	#3
+	theta_dim = 22	#22 to include Kp and Ki
 	nn_units=[16,16]
-	nn_activations=["relu", "relu", "passthru"]
+	nn_activations=["relu", "relu","passthru"]
 	population = 24
 	sigma_init=0.1
 	sigma_decay=0.9999 
@@ -53,9 +53,15 @@ class Settings():
 	lowlim_jthigh = 90*(np.pi/180)
 	upplim_jleg = 120*(np.pi/180)
 	lowlim_jleg = 0*(np.pi/180)
+	upplim_kp = 150
+	lowlim_kp = 150
+	upplim_kd = 8
+	lowlim_kd = 6
+
 	plot_mode = False
 	sigmoid_slope = 1
 	init_vel = 0.7743
+	init_state = np.array([-0.2000, 0.7546, 0.1675, 2.4948, 0.4405, 3.1894, 0.2132, 0.7743, 0.2891, 0.3796, 1.1377, -0.9273, -0.1285, 1.6298])
 	size_vel_buffer = 10
 	def __init__(self):
 		pass
@@ -71,13 +77,15 @@ def get_reward(reward_params, reward_tau, desired_vel, current_vel_av, sum_error
 		if velocity < 0:
 			velocity_reward = 0
 		elif velocity <= desired_vel:
-			velocity_reward = (velocity/desired_vel)**2
+			velocity_reward = ((velocity/desired_vel)**2)
 		else:
-			velocity_reward = (desired_vel/velocity)**2
+			velocity_reward = ((desired_vel/velocity)**2)
 
 		action_reward = -1e-2 * np.sum(a**2)
 		displacement_reward  = posafter
-		reward = alive_bonus + 10*velocity_reward + 1*action_reward + 1*displacement_reward + 0.5*sum_error
+		error_reward =  - (desired_vel - velocity)**2
+		# print(error_reward)
+		reward = alive_bonus + 10*velocity_reward + 1*action_reward + 1*displacement_reward + 1*error_reward
 		reward = scale*reward	
 
 	if mode == "linear2":
@@ -371,25 +379,36 @@ def bound_theta_sigmoid(theta):		#Add offset and restrict to range corresponding
 	theta_legR = settings.upplim_jleg*(theta_legR)
 	theta_thighL = ((settings.upplim_jthigh - settings.lowlim_jthigh)*theta_thighL) + settings.lowlim_jthigh
 	theta_legL = settings.upplim_jleg*(theta_legL)
+	theta_kp = ((settings.upplim_kp - settings.lowlim_kp)*theta[20]) + settings.lowlim_kp
+	theta_kd = ((settings.upplim_kd - settings.lowlim_kd)*theta[21]) + settings.lowlim_kd
 	[theta[0], theta[4], theta[8], theta[12], theta[16]] = theta_thighR
 	[theta[1], theta[5], theta[9], theta[13], theta[17]] = theta_legR
 	[theta[2], theta[6], theta[10], theta[14], theta[18]] = theta_thighL
 	[theta[3], theta[7], theta[11], theta[15], theta[19]] = theta_legL
+	theta[20] = theta_kp
+	theta[21] = theta_kd
 	return theta
 
 
 def simulate(model, solution, settings, desired_velocity, render_mode):
 	model.set_weights(solution) #FIX FOR EACH PAIR model-solution
 	current_speed = settings.init_vel
+	current_state = settings.init_state
 	current_speed_list = np.zeros(settings.size_vel_buffer)
 	error = np.zeros(settings.size_vel_buffer)
 	error[0] = desired_velocity - current_speed 
+	# inputs_nn = np.append(current_state[0:14], [desired_velocity, sum(error)])
 	inputs_nn = np.array([current_speed, desired_velocity, sum(error)])
 	theta = model.predict(inputs_nn)
 
 	# theta = bound_theta_tanh(theta)
-	theta = bound_theta_sigmoid(theta)
-	print(theta)
+	theta_bounded = bound_theta_sigmoid(theta)
+	theta = theta_bounded[0:20]
+	settings.control_kp = theta_bounded[20]
+	settings.control_kd = theta_bounded[21]
+	# print(settings.control_kp)
+	# print(settings.control_kd)
+	# print(theta)
 	# print(theta)	
 
 	pi = Policy(theta=theta, action_size=settings.action_size, 
@@ -422,12 +441,19 @@ def simulate(model, solution, settings, desired_velocity, render_mode):
 			error = np.roll(error,1)
 			error[0] = desired_velocity - current_speed 
 			sum_error = sum(error)
+			# sum_error_square = sum(error**2)
 
 			if last_speed is None or (current_speed - last_speed) < 1e-1: # 1e-2
-				inputs_nn = np.array([current_speed, desired_velocity, sum(error)])	
+				inputs_nn = np.array([current_speed, desired_velocity, sum(error)])		
+				# inputs_nn = np.append(state[0:14], [desired_velocity, sum(error)])
 				theta = model.predict(inputs_nn)
 				# theta = bound_theta_tanh(theta)
-				theta = bound_theta_sigmoid(theta)	
+				theta_bounded = bound_theta_sigmoid(theta)
+				theta = theta_bounded[0:20]
+				settings.control_kp = theta_bounded[20]
+				settings.control_kd = theta_bounded[21]
+				# print(settings.control_kp)
+				# print(settings.control_kd)
 				# print(theta)
 				last_speed = current_speed
 			# print (current_speed)
@@ -509,6 +535,7 @@ if __name__ == "__main__":
 		# 									   high=settings.desired_v_up, 
 		# 									   size=(settings.population,))
 		
+		# desired_velocities = np.array([0.8, 0.8, 0.8, 1.0, 1.0, 1.0, 1.2,1.2, 1.2, 0.8, 0.8, 0.8, 1.0, 1.0, 1.0, 1.2,1.2, 1.2, 0.8, 1.2, 0.8, 1.2, 0.8, 1.0])
 		desired_velocities = np.array([0.8, 1.2, 1.2, 1.2, 0.8, 0.8, 1.2,1.2, 0.8, 0.8, 1.2, 0.8, 0.8, 0.8, 1.2, 1.2, 0.8, 0.8, 0.8, 1.2,0.8, 1.2, 0.8, 0.8])
 
 
