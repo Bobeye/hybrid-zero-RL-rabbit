@@ -11,6 +11,7 @@ import hzd.trajectory as trajectory
 import hzd.params as params
 
 import gym
+from gym import wrappers
 from joblib import Parallel, delayed
 import json
 import os
@@ -23,30 +24,30 @@ class Settings():
 	txt_log = "log/" + "/train.txt"
 	policy_path = "log/"+ "/policy/"
 	backend = "multiprocessing"
-	n_jobs = 8
+	n_jobs = 20
 	frequency = 20.
 	total_threshold = 1e8
 	num_episode = 5
-	max_episode_length=1600
+	max_episode_length=3000
 	batch_mode="mean"
 	state_size = 14
 	action_size = 4
 	action_min = -4.
 	action_max = 4.
 	control_kp = 150.
-	control_kd = 7.
+	control_kd = 10.
 	desired_v_low = 1.
 	desired_v_up = 1.
 	conditions_dim = 3
 	theta_dim = 20
 	nn_units=[16,16]
 	nn_activations=["relu", "relu", "passthru"]
-	population = 24
+	population = 20
 	sigma_init=0.1
-	sigma_decay=0.9999 
+	sigma_decay=0.999
 	sigma_limit=1e-4
 	learning_rate=0.01
-	learning_rate_decay=0.9999 
+	learning_rate_decay=0.999 
 	learning_rate_limit=1e-6
 	aux = 0
 	upplim_jthigh = 250*(np.pi/180)
@@ -56,7 +57,7 @@ class Settings():
 	plot_mode = False
 	sigmoid_slope = 1
 	init_vel = 0.7743
-	size_vel_buffer = 10
+	size_vel_buffer = 200
 	def __init__(self):
 		pass
 settings = Settings()
@@ -66,6 +67,39 @@ def get_reward(reward_params, reward_tau, desired_vel, current_vel_av, sum_error
 	alive_bonus, posafter, posbefore, velocity, a, w = reward_params[0], reward_params[1], reward_params[2], reward_params[3], reward_params[4], reward_params[5]
 	# print (desired_vel)
 	# print (velocity)
+	if mode == "linear_bowen":	#Works better so far, but can not follow desired speed
+		scale = 0.1
+		# if velocity < 0:
+		# 	velocity_reward = 0
+		
+		if abs(velocity-desired_vel) <= 0.1:
+			if velocity <= desired_vel:
+				velocity_reward = (velocity / desired_vel)**2
+			else:
+				velocity_reward = (desired_vel / velocity)**2
+		else:
+			velocity_reward = 0
+
+
+
+
+		# elif abs(velocity-desired_vel) <= 0.1:
+		# 	if velocity < desired_vel:
+		# 		velocity_reward = (desirevelocity)/0.1
+
+		# elif velocity <= desired_vel-0.1:
+		# 	velocity_reward = (velocity/desired_vel)
+		# elif velocity >= desired_vel+0.1:
+		# 	velocity_reward = 0. #(desired_vel/velocity)
+		# else:
+		# 	velocity_reward = 1.
+
+		action_reward = -1e-2 * np.sum(a**2)
+		displacement_reward  = posafter
+		reward = 10*velocity_reward # + 1*action_reward + 1*displacement_reward # + 0.5*sum_error
+		reward = scale*reward	
+
+
 	if mode == "linear1":	#Works better so far, but can not follow desired speed
 		scale = 0.1
 		if velocity < 0:
@@ -77,7 +111,7 @@ def get_reward(reward_params, reward_tau, desired_vel, current_vel_av, sum_error
 
 		action_reward = -1e-2 * np.sum(a**2)
 		displacement_reward  = posafter
-		reward = alive_bonus + 10*velocity_reward + 1*action_reward + 1*displacement_reward + 0.5*sum_error
+		reward = alive_bonus + 10*velocity_reward + 1*action_reward + 1*displacement_reward # + 0.5*sum_error
 		reward = scale*reward	
 
 	if mode == "linear2":
@@ -334,7 +368,7 @@ def save_policy(path, solution):
 
 def make_env(env_name, seed=np.random.seed(None), render_mode=False, desired_velocity=None):
 	env = gym.make(env_name)
-	env.assign_desired_vel(desired_velocity)
+	# env.assign_desired_vel(desired_velocity)
 	env.reset()
 	if render_mode:	
 		env.render("human")
@@ -378,68 +412,60 @@ def bound_theta_sigmoid(theta):		#Add offset and restrict to range corresponding
 	return theta
 
 
-def simulate(model, solution, settings, desired_velocity, render_mode):
+def simulate(model, solution, settings, 
+			 dv_min, dv_max, render_mode):
+
 	model.set_weights(solution) #FIX FOR EACH PAIR model-solution
+	
 	current_speed = settings.init_vel
-	current_speed_list = np.zeros(settings.size_vel_buffer)
-	error = np.zeros(settings.size_vel_buffer)
-	error[0] = desired_velocity - current_speed 
-	inputs_nn = np.array([current_speed, desired_velocity, sum(error)])
-	theta = model.predict(inputs_nn)
+	desired_velocity = np.random.uniform(low=dv_min, high=dv_max)
+	current_speed_list = []
+	error = []
 
-	# theta = bound_theta_tanh(theta)
-	theta = bound_theta_sigmoid(theta)
-	print(theta)
-	# print(theta)	
-
-	pi = Policy(theta=theta, action_size=settings.action_size, 
-				action_min=settings.action_min, action_max=settings.action_max,
-				kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency, mode="hzdrl")
 	env = make_env(settings.env_name, render_mode=render_mode, desired_velocity = desired_velocity)
+
 
 	total_reward_list = [];	timesteps = 0;	state_list = [];	action_list = [];	reward_list = [];	termination_list = [];	last_speed = None
 
 	for episode in range(settings.num_episode):	
-		# print (episode)
 		state = env.reset()
-		# print(state)
 		if state is None:
 			state = np.zeros(settings.state_size)
 		total_reward = 0
-
+		
 		for t in range(settings.max_episode_length):
+			if t == settings.max_episode_length//2:
+				desired_velocity = np.random.uniform(low=dv_min, high=dv_max)
+
 			timesteps += 1
 			if render_mode:
 				env.render("human")
-			#PREDICT THETA EVERY EPISODE FOR DIFFERENT VELOCITIES TO DO THE TRAINING
-			#current_speed = state[7]	#current velocity of hip
 			
 			current_speed = state[7]
-			current_speed_list = np.roll(current_speed_list,1)
-			current_speed_list[0] = current_speed
-			current_speed_av = np.mean(current_speed_list)
+			current_speed_list += [current_speed]
+			while len(current_speed_list) > settings.size_vel_buffer:
+				del current_speed_list[0]
+			current_speed_av = np.mean(np.array(current_speed_list))
 
-			error = np.roll(error,1)
-			error[0] = desired_velocity - current_speed 
-			sum_error = sum(error)
+			error += [desired_velocity - current_speed]
+			while len(error) > settings.size_vel_buffer:
+				del error[0]
 
-			if last_speed is None or (current_speed - last_speed) < 1e-1: # 1e-2
-				inputs_nn = np.array([current_speed, desired_velocity, sum(error)])	
-				theta = model.predict(inputs_nn)
-				# theta = bound_theta_tanh(theta)
-				theta = bound_theta_sigmoid(theta)	
-				# print(theta)
-				last_speed = current_speed
-			# print (current_speed)
+			# if last_speed is None or (current_speed - last_speed) < 1e-1: # 1e-2
+			inputs_nn = np.array([current_speed_av, 
+								  desired_velocity, 
+								  np.mean(np.array(error))])	
+			print current_speed, current_speed_av, desired_velocity
+			theta_kd = model.predict(inputs_nn)
+			theta = bound_theta_sigmoid(theta_kd[0:settings.theta_dim])
+			kd = sigmoid(theta_kd[-1]) * settings.control_kd
 			pi = Policy(theta=theta, action_size=settings.action_size, 
 						action_min=settings.action_min, action_max=settings.action_max,
-						kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency, mode = "hzdrl")
-
-			
+						kp=settings.control_kp, kd=kd, feq=settings.frequency, mode = "hzdrl")
 
 			action, reward_tau = pi.get_action(state, settings.plot_mode)
 			observation, reward_params, done, info = env.step(action)
-			reward = get_reward(reward_params, reward_tau, desired_velocity, current_speed_av, sum_error, mode="linear1")
+			reward = get_reward(reward_params, reward_tau, desired_velocity, current_speed_av, sum(error), mode="linear_bowen")
 			state = observation
 			if settings.plot_mode:
 				save_plot_2(state)			
@@ -470,25 +496,25 @@ if __name__ == "__main__":
 	make_log(settings.txt_log, settings.policy_path)
 
 	model = NeuralNetwork(input_dim=settings.conditions_dim,
-					 	  output_dim=settings.theta_dim,
+					 	  output_dim=settings.theta_dim+1,
 					 	  units=settings.nn_units,
 					 	  activations=settings.nn_activations)
-	# # Adopt OpenAI ES
-	# escls = OpenES(model.parameter_count, 
-	# 			   sigma_init=settings.sigma_init, 
-	# 			   sigma_decay=settings.sigma_decay, 
-	# 			   sigma_limit=settings.sigma_limit, 
-	# 			   learning_rate=settings.learning_rate,
-	# 			   learning_rate_decay=settings.learning_rate_decay, 
-	# 			   learning_rate_limit=settings.learning_rate_limit,
-	# 			   popsize=settings.population, 
-	# 			   antithetic=True)
+	# Adopt OpenAI ES
+	escls = OpenES(model.parameter_count, 
+				   sigma_init=settings.sigma_init, 
+				   sigma_decay=settings.sigma_decay, 
+				   sigma_limit=settings.sigma_limit, 
+				   learning_rate=settings.learning_rate,
+				   learning_rate_decay=settings.learning_rate_decay, 
+				   learning_rate_limit=settings.learning_rate_limit,
+				   popsize=settings.population, 
+				   antithetic=True)
 
-	# Adopt CMA-ES
-	escls = CMAES(model.parameter_count,
-				  sigma_init=settings.sigma_init,
-				  popsize=settings.population,
-				  weight_decay=settings.sigma_decay)
+	# # Adopt CMA-ES
+	# escls = CMAES(model.parameter_count,
+	# 			  sigma_init=settings.sigma_init,
+	# 			  popsize=settings.population,
+	# 			  weight_decay=settings.sigma_decay)
 
 	step = 0
 	total_timesteps = 0
@@ -499,7 +525,7 @@ if __name__ == "__main__":
 		models = []
 		for _ in range(settings.population):
 			m = NeuralNetwork(input_dim=settings.conditions_dim,
-					 	  	  output_dim=settings.theta_dim,
+					 	  	  output_dim=settings.theta_dim+1,
 					 	  	  units=settings.nn_units,
 					 	  	  activations=settings.nn_activations)
 			models += [m]
@@ -509,12 +535,12 @@ if __name__ == "__main__":
 		# 									   high=settings.desired_v_up, 
 		# 									   size=(settings.population,))
 		
-		desired_velocities = np.array([0.8, 1.2, 1.2, 1.2, 0.8, 0.8, 1.2,1.2, 0.8, 0.8, 1.2, 0.8, 0.8, 0.8, 1.2, 1.2, 0.8, 0.8, 0.8, 1.2,0.8, 1.2, 0.8, 0.8])
-
+		# desired_velocities = np.array([0.8, 1.2, 1.2, 1.2, 0.8, 0.8, 1.2,1.2, 0.8, 0.8, 1.2, 0.8, 0.8, 0.8, 1.2, 1.2, 0.8, 0.8, 0.8, 1.2,0.8, 1.2, 0.8, 0.8])
+		# desired_velocities = np.random.uniform(low=0.5, high=1.5, size=(settings.population,2))
 
 		# desired_velocities = np.zeros(settings.population,) + 2.
 		render_mode = False
-		result = Parallel(n_jobs=settings.n_jobs, backend=settings.backend)(delayed(simulate)(models[i],solutions[i],settings,desired_velocities[i],render_mode,) for i in range(len(models)))
+		result = Parallel(n_jobs=settings.n_jobs, backend=settings.backend)(delayed(simulate)(models[i],solutions[i],settings,0.7, 1.6,render_mode,) for i in range(len(models)))
 
 		rewards_list = []
 		timesteps_list = []
