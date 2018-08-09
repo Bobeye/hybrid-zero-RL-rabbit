@@ -41,7 +41,7 @@ class LSTM_NN():
 		layer_lstm = layer_in
 		for hidden_size in self.hidden_units:
 			layer_lstm = LSTM(hidden_size, return_sequences=True)(layer_lstm)
-		layer_out = TimeDistributed(Dense(1, activation="sigmoid"))(layer_lstm)
+		layer_out = TimeDistributed(Dense(self.output_size, activation="sigmoid"))(layer_lstm)
 		self.model = Model(layer_in, layer_out)
 		self.model.compile(loss='mse', optimizer='adam')
 		print self.model.summary()
@@ -75,10 +75,10 @@ if __name__ == "__main__":
 
 	test = LSTM_NN(num_steps=num_steps, feature_size=feature_size,
 			hidden_units=[hidden_size, hidden_size, 10],
-			output_size = 1)
+			output_size = 6)
 
 	params = np.zeros(test.parameter_count)
 	test.set_weights(params)
 
 	x = np.zeros((batchsize, num_steps, feature_size))
-	print test.predict(x).shape
+	print test.predict(x)
