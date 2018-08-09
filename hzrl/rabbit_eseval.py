@@ -85,11 +85,12 @@ if __name__ == "__main__":
 			state = np.zeros(settings.state_size)
 		total_reward = 0
 		for t in range(min(4000,settings.max_episode_length)):
-			if t < 1500:
-				desired_velocity = 0.8
+			if t < 1000:
+				desired_velocity = 0.7
+			elif t < 2000:
+				desired_velocity = 1.3
 			else:
-				desired_velocity = 1.2
-
+				desired_velocity = 1.0
 
 
 			timesteps += 1
@@ -157,4 +158,4 @@ if __name__ == "__main__":
 
 
 		plt.plot(velocity_list)
-		plt.savefig("log/"+"449_change_"+str(desired_velocity)+".png")
+		plt.savefig("log/"+"449_change1_"+str(desired_velocity)+".png")
