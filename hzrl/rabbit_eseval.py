@@ -73,7 +73,8 @@ if __name__ == "__main__":
 	if video_path is not None:
 		env = wrappers.Monitor(env, video_path, video_callable=lambda episode_id: True, force=True)
 	
-	for desired_velocity in [0.8, 1.0, 1.2, 1.5]:
+	# for desired_velocity in [0.8, 1.0, 1.2, 1.5]:
+	for desired_velocity in range(1):
 		total_reward_list = []
 		velocity_list = []
 
@@ -84,6 +85,13 @@ if __name__ == "__main__":
 			state = np.zeros(settings.state_size)
 		total_reward = 0
 		for t in range(min(4000,settings.max_episode_length)):
+			if t < 1500:
+				desired_velocity = 0.8
+			else:
+				desired_velocity = 1.2
+
+
+
 			timesteps += 1
 			if render_mode:
 				env.render()
@@ -149,4 +157,4 @@ if __name__ == "__main__":
 
 
 		plt.plot(velocity_list)
-		plt.savefig("log/"+"449_"+str(desired_velocity)+".png")
+		plt.savefig("log/"+"449_change_"+str(desired_velocity)+".png")
