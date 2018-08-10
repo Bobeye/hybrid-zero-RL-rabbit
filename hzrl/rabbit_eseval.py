@@ -1,5 +1,5 @@
 #	Evaluate rabbit walk
-#	by Bowen, June, 2018
+#	by Guillermo, June, 2018
 #
 ################################
 from __future__ import division
@@ -15,11 +15,14 @@ from joblib import Parallel, delayed
 import json
 import os
 import numpy as np
+import matplotlib.pyplot as plt
 
 import matplotlib.pyplot as plt
 
 from rabbit_estrain import settings, Policy, make_env, sigmoid, bound_theta_tanh, bound_theta_sigmoid, init_plot, save_plot_2, get_reward
 from gym import wrappers
+
+import matplotlib.pyplot as plt
 
 def load_model(filename):
     with open(filename) as f:    
@@ -31,19 +34,16 @@ def load_model(filename):
 if __name__ == "__main__":
 	policy_path = "log/"+"/policy/449.json"
 	video_path = None
-	video_path = policy_path.split(".json")[0]
-
+	# video_path = policy_path.split(".json")[0]
 	render_mode = True
-	plot_mode = False
+	plot_mode = True
 	record_mode = False
-	settings.plot_mode = False
+	settings.plot_mode = True
 	
 	if plot_mode:
 		init_plot()
 
 	desired_velocity = 1.
-	# settings.control_kp = 150
-	# settings.control_kd = 7
 	current_speed = settings.init_vel
 	model = NeuralNetwork(input_dim=settings.conditions_dim,
 					 	  output_dim=settings.theta_dim+1,
@@ -54,46 +54,28 @@ if __name__ == "__main__":
 	model.set_weights(model_params)
 
 	current_speed_list, error = [], []
-
-	# current_speed = settings.init_vel
-	# current_speed_list = np.zeros(settings.size_vel_buffer)
-	# error = np.zeros(settings.size_vel_buffer)
-	# error[0] = desired_velocity - current_speed 
-	# inputs_nn = np.array([current_speed, desired_velocity, sum(error)])
-
-	# theta = model.predict(inputs_nn)
-	# # theta = bound_theta_tanh(theta)
-	# theta = bound_theta_sigmoid(theta)	
-	# print(theta)
-
-	# pi = Policy(theta=theta, action_size=settings.action_size, 
-	# 			action_min=settings.action_min, action_max=settings.action_max,
-	# 			kp=settings.control_kp, kd=settings.control_kd, feq=settings.frequency)
 	env = make_env(settings.env_name, render_mode=render_mode, desired_velocity = desired_velocity)
+	
 	if video_path is not None:
 		env = wrappers.Monitor(env, video_path, video_callable=lambda episode_id: True, force=True)
 	
-	# for desired_velocity in [0.8, 1.0, 1.2, 1.5]:
-	for desired_velocity in range(1):
+	for desired_velocity in [0.8, 1.0, 1.2, 1.5]:
+	# for desired_velocity in range(1):
 		total_reward_list = []
 		velocity_list = []
-
-		last_speed = None
 		state = env.reset()
 		timesteps = 0
 		if state is None:
 			state = np.zeros(settings.state_size)
 		total_reward = 0
 		for t in range(min(4000,settings.max_episode_length)):
-			if t < 1000:
-				desired_velocity = 0.7
-			elif t < 2000:
-				desired_velocity = 1.3
-			else:
-				desired_velocity = 1.0
+			# if t < 1000:
+			# 	desired_velocity = 0.7
+			# elif t < 2000:
+			# 	desired_velocity = 1.3
+			# else:
+			# 	desired_velocity = 1.0	
 
-
-			timesteps += 1
 			if render_mode:
 				env.render()
 				
@@ -114,10 +96,6 @@ if __name__ == "__main__":
 			theta_kd = model.predict(inputs_nn)
 			theta = bound_theta_sigmoid(theta_kd[0:settings.theta_dim])
 			kd = sigmoid(theta_kd[-1]) * settings.control_kd
-
-			last_speed = current_speed
-			# else:
-			# 	print("Exception")
 				
 			pi = Policy(theta=theta, action_size=settings.action_size, 
 						action_min=settings.action_min, action_max=settings.action_max,
@@ -137,7 +115,17 @@ if __name__ == "__main__":
 			if done:
 				break
 
+			timesteps += 1
+
+
 		total_reward_list += [np.array([total_reward]).flatten()]
+		print(total_reward)
+		
+		# velocity_list_new = velocity_list[400:1600]
+		velocity_list_new = velocity_list
+		print(np.size(velocity_list))
+		vel_mean = np.sum(velocity_list_new)/np.size(velocity_list_new)
+		print(vel_mean, np.amin(velocity_list), np.amax(velocity_list))
 	
 		# if record_mode:
 		# 	env.close()				
@@ -158,4 +146,5 @@ if __name__ == "__main__":
 
 
 		plt.plot(velocity_list)
-		plt.savefig("log/"+"449_change1_"+str(desired_velocity)+".png")
+		plt.show()
+		# plt.savefig("log/"+"449_change1_"+str(desired_velocity)+".png")

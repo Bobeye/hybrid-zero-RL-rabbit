@@ -1,4 +1,5 @@
 Summary of the training: 
+<<<<<<< HEAD
 (' ave_R ', 20.5, ' std_R ', 11.37, ' min_R ', 0.0, ' max_R ', 54.92, ' times ', 29474)
 (' ave_R ', 5.98, ' std_R ', 3.19, ' min_R ', 4.35, ' max_R ', 19.43, ' times ', 57165)
 (' ave_R ', 55.9, ' std_R ', 18.07, ' min_R ', 27.24, ' max_R ', 107.65, ' times ', 85510)
@@ -449,3 +450,5 @@ Summary of the training:
 (' ave_R ', 761.62, ' std_R ', 462.39, ' min_R ', 71.71, ' max_R ', 1470.28, ' times ', 99640449)
 (' ave_R ', 827.65, ' std_R ', 284.14, ' min_R ', 332.36, ' max_R ', 1350.28, ' times ', 99918885)
 (' ave_R ', 898.23, ' std_R ', 369.78, ' min_R ', 4.06, ' max_R ', 1391.13, ' times ', 100173871)
+=======
+>>>>>>> origin/devel_gc

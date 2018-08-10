@@ -31,34 +31,34 @@ j4pos = load_plot("plots/j4_pos_data.txt")
 
 ### PLOT DESIRED AND OBTAINED TRAJECTORY AND THE ERROR BETWEEN THEM
 
-plt.plot(j1d[0:np.size(j1d)],color="blue", linewidth=1.5, linestyle="-", label="$Desired$")
-plt.plot(j1pos[0:np.size(j1pos)],color="red", linewidth=1.5, linestyle="-", label="$Obtained$")
+# plt.plot(j1d[0:np.size(j1d)],color="blue", linewidth=1.5, linestyle="-", label="$Desired$")
+# plt.plot(j1pos[0:np.size(j1pos)],color="red", linewidth=1.5, linestyle="-", label="$Obtained$")
 
-#Plot legend
-plt.legend(loc='upper right')
-#Axis format
-ax = plt.gca()  # gca stands for 'get current axis'
-#Axis labels
-ax.set_xlabel('Simulation steps')
-ax.set_ylabel('Angle[rad]')
-plt.savefig("Joint1 trajectories")
-plt.show()
+# #Plot legend
+# plt.legend(loc='upper right')
+# #Axis format
+# ax = plt.gca()  # gca stands for 'get current axis'
+# #Axis labels
+# ax.set_xlabel('Simulation steps')
+# ax.set_ylabel('Angle[rad]')
+# plt.savefig("Joint1 trajectories")
+# plt.show()
 
 
-j1_error = j1d - j1pos
+# j1_error = j1d - j1pos
 
-plt.plot(j1_error[0:np.size(j1d)],color="red", linewidth=1.5, linestyle="-", label="$ErrorJoint1$")
-plt.show()
+# plt.plot(j1_error[0:np.size(j1d)],color="red", linewidth=1.5, linestyle="-", label="$ErrorJoint1$")
+# plt.show()
 
-#Plot legend
-plt.legend(loc='upper right')
-#Axis format
-ax = plt.gca()  # gca stands for 'get current axis'
-#Axis labels
-ax.set_xlabel('Simulation steps')
-ax.set_ylabel('Error')
-plt.savefig("Joint1 trajectories")
-plt.show()
+# #Plot legend
+# plt.legend(loc='upper right')
+# #Axis format
+# ax = plt.gca()  # gca stands for 'get current axis'
+# #Axis labels
+# ax.set_xlabel('Simulation steps')
+# ax.set_ylabel('Error')
+# plt.savefig("Joint1 trajectories")
+# plt.show()
 
 plt.plot(hip_vel[0:np.size(hip_vel)],color="blue", linewidth=1.5, linestyle="-", label="$Hip_velocity$")   
 #Plot legend
@@ -68,7 +68,7 @@ ax = plt.gca()  # gca stands for 'get current axis'
 #Axis labels
 ax.set_xlabel('Simlation steps')
 ax.set_ylabel('Hip velocity')
-plt.savefig("Hip_velocity_4,0")
+plt.savefig("Hip_velocity")
 plt.show()
 
 
