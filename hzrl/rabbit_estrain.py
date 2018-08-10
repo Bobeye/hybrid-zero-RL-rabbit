@@ -11,6 +11,7 @@ import hzd.trajectory as trajectory
 import hzd.params as params
 
 import gym
+from gym import wrappers
 from joblib import Parallel, delayed
 import json
 import os
@@ -23,7 +24,7 @@ class Settings():
 	txt_log = "log/" + "/train.txt"
 	policy_path = "log/"+ "/policy/"
 	backend = "multiprocessing"
-	n_jobs = 8
+	n_jobs = 20
 	frequency = 20.
 	total_threshold = 1e8
 	num_episode = 5
@@ -40,10 +41,10 @@ class Settings():
 	conditions_dim = 3	#3
 	theta_dim = 20	#22 to include Kp and Ki
 	nn_units=[16,16]
-	nn_activations=["relu", "relu","passthru"]
-	population = 24
+	nn_activations=["relu", "relu", "passthru"]
+	population = 20
 	sigma_init=0.1
-	sigma_decay=0.999 
+	sigma_decay=0.999
 	sigma_limit=1e-4
 	learning_rate=0.01
 	learning_rate_decay=0.999 
@@ -71,7 +72,40 @@ def get_reward(reward_params, reward_tau, desired_vel, current_vel_av, sum_error
 	alive_bonus, posafter, posbefore, velocity, a, w = reward_params[0], reward_params[1], reward_params[2], reward_params[3], reward_params[4], reward_params[5]
 	# print (desired_vel)
 	# print (velocity)
-	if mode == "quadratic":	#Works better so far, but can not follow desired speed
+	if mode == "linear_bowen":	#Works better so far, but can not follow desired speed
+		scale = 0.1
+		# if velocity < 0:
+		# 	velocity_reward = 0
+		
+		if abs(velocity-desired_vel) <= 0.1:
+			if velocity <= desired_vel:
+				velocity_reward = (velocity / desired_vel)**2
+			else:
+				velocity_reward = (desired_vel / velocity)**2
+		else:
+			velocity_reward = 0
+
+
+
+
+		# elif abs(velocity-desired_vel) <= 0.1:
+		# 	if velocity < desired_vel:
+		# 		velocity_reward = (desirevelocity)/0.1
+
+		# elif velocity <= desired_vel-0.1:
+		# 	velocity_reward = (velocity/desired_vel)
+		# elif velocity >= desired_vel+0.1:
+		# 	velocity_reward = 0. #(desired_vel/velocity)
+		# else:
+		# 	velocity_reward = 1.
+
+		action_reward = -1e-2 * np.sum(a**2)
+		displacement_reward  = posafter
+		reward = 10*velocity_reward # + 1*action_reward + 1*displacement_reward # + 0.5*sum_error
+		reward = scale*reward	
+
+
+	if mode == "linear1":	#Works better so far, but can not follow desired speed
 		scale = 0.1
 		if velocity < 0:
 			velocity_reward = 0
@@ -82,9 +116,7 @@ def get_reward(reward_params, reward_tau, desired_vel, current_vel_av, sum_error
 
 		action_reward = -1e-2 * np.sum(a**2)
 		displacement_reward  = posafter
-		error_reward =  - (desired_vel - velocity)**2
-		# print(error_reward)
-		reward = alive_bonus + 10*velocity_reward + 1*action_reward + 1*displacement_reward + 1*error_reward
+		reward = alive_bonus + 10*velocity_reward + 1*action_reward + 1*displacement_reward # + 0.5*sum_error
 		reward = scale*reward	
 
 	if mode == "quadraticB":
@@ -280,7 +312,7 @@ def save_policy(path, solution):
 
 def make_env(env_name, seed=np.random.seed(None), render_mode=False, desired_velocity=None):
 	env = gym.make(env_name)
-	#env.assign_desired_vel(desired_velocity)
+	# env.assign_desired_vel(desired_velocity)
 	env.reset()
 	if render_mode:	
 		env.render("human")
@@ -328,34 +360,35 @@ def bound_theta_sigmoid(theta):		#Add offset and restrict to range corresponding
 	return theta
 
 
-def simulate(model, solution, settings, dv_min, dv_max, render_mode):
-	model.set_weights(solution) #FIX FOR EACH PAIR model-solution
-	current_speed = settings.init_vel
+def simulate(model, solution, settings, 
+			 dv_min, dv_max, render_mode):
 
+	model.set_weights(solution) #FIX FOR EACH PAIR model-solution
+	
+	current_speed = settings.init_vel
 	desired_velocity = np.random.uniform(low=dv_min, high=dv_max)
-	current_speed_list =[]
+	current_speed_list = []
 	error = []
+
 	env = make_env(settings.env_name, render_mode=render_mode, desired_velocity = desired_velocity)
 
-	total_reward_list = [];	timesteps = 0;	#state_list = [];	action_list = [];	reward_list = [];	termination_list = []
+
+	total_reward_list = [];	timesteps = 0;	state_list = [];	action_list = [];	reward_list = [];	termination_list = [];	last_speed = None
 
 	for episode in range(settings.num_episode):	
-		# print (episode)
 		state = env.reset()
-		# print(state)
 		if state is None:
 			state = np.zeros(settings.state_size)
 		total_reward = 0
-
+		
 		for t in range(settings.max_episode_length):
 			if t == settings.max_episode_length//2:
 				desired_velocity = np.random.uniform(low=dv_min, high=dv_max)
 			timesteps += 1
 			if render_mode:
 				env.render("human")
-			#PREDICT THETA EVERY EPISODE FOR DIFFERENT VELOCITIES TO DO THE TRAINING
-			#current_speed = state[7]	#current velocity of hip
 			
+			current_speed = state[7]
 			current_speed_list += [current_speed]
 			while len(current_speed_list) > settings.size_vel_buffer:
 				del current_speed_list[0]
@@ -364,25 +397,21 @@ def simulate(model, solution, settings, dv_min, dv_max, render_mode):
 			while len(error) > settings.size_vel_buffer:
 				del error[0]
 
-			sum_error = sum(error)
-
-			#if last_speed is None or (current_speed - last_speed) < 1e-1: # 1e-2
-			inputs_nn = np.array([current_speed_av, desired_velocity, np.mean(np.array(error))])		
-			# inputs_nn = np.array([current_speed, desired_velocity, sum(error)])	
-			# print (current_speed, current_speed_av, desired_velocity)
+			# if last_speed is None or (current_speed - last_speed) < 1e-1: # 1e-2
+			inputs_nn = np.array([current_speed_av, 
+								  desired_velocity, 
+								  np.mean(np.array(error))])	
+			# print current_speed, current_speed_av, desired_velocity
 			theta_kd = model.predict(inputs_nn)
-
 			theta = bound_theta_sigmoid(theta_kd[0:settings.theta_dim])
 			kd = sigmoid(theta_kd[-1]) * settings.control_kd
-			# print(kd)
 			pi = Policy(theta=theta, action_size=settings.action_size, 
 						action_min=settings.action_min, action_max=settings.action_max,
 						kp=settings.control_kp, kd=kd, feq=settings.frequency, mode = "hzdrl")
 
-
 			action, reward_tau = pi.get_action(state, settings.plot_mode)
 			observation, reward_params, done, info = env.step(action)
-			reward = get_reward(reward_params, reward_tau, desired_velocity, current_speed_av, sum(error), mode="quadratic")
+			reward = get_reward(reward_params, reward_tau, desired_velocity, current_speed_av, sum(error), mode="linear_bowen")
 			state = observation
 			if settings.plot_mode:
 				save_plot_2(state)			
@@ -442,7 +471,7 @@ if __name__ == "__main__":
 		models = []
 		for _ in range(settings.population):
 			m = NeuralNetwork(input_dim=settings.conditions_dim,
-					 	  	  output_dim=settings.theta_dim,
+					 	  	  output_dim=settings.theta_dim+1,
 					 	  	  units=settings.nn_units,
 					 	  	  activations=settings.nn_activations)
 			models += [m]
@@ -452,7 +481,6 @@ if __name__ == "__main__":
 		# 									   high=settings.desired_v_up, 
 		# 									   size=(settings.population,))
 		
-		# desired_velocities = np.array([0.8, 0.8, 0.8, 1.0, 1.0, 1.0, 1.2,1.2, 1.2, 0.8, 0.8, 0.8, 1.0, 1.0, 1.0, 1.2,1.2, 1.2, 0.8, 1.2, 0.8, 1.2, 0.8, 1.0])
 		# desired_velocities = np.array([0.8, 1.2, 1.2, 1.2, 0.8, 0.8, 1.2,1.2, 0.8, 0.8, 1.2, 0.8, 0.8, 0.8, 1.2, 1.2, 0.8, 0.8, 0.8, 1.2,0.8, 1.2, 0.8, 0.8])
 		# desired_velocities = np.random.uniform(low=0.5, high=1.5, size=(settings.population,2))
 
@@ -460,7 +488,7 @@ if __name__ == "__main__":
 		down_lim_vel = 0.6
 		# desired_velocities = np.zeros(settings.population,) + 2.
 		render_mode = False
-		result = Parallel(n_jobs=settings.n_jobs, backend=settings.backend)(delayed(simulate)(models[i],solutions[i],settings,up_lim_vel,down_lim_vel,render_mode,) for i in range(len(models)))
+		result = Parallel(n_jobs=settings.n_jobs, backend=settings.backend)(delayed(simulate)(models[i],solutions[i],settings,0.7, 1.6,render_mode,) for i in range(len(models)))
 
 		rewards_list = []
 		timesteps_list = []
