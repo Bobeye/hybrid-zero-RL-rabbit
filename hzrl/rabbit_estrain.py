@@ -36,8 +36,8 @@ class Settings():
 	action_max = 4.
 	control_kp = 150.
 	control_kd = 10.
-	desired_v_low = 1.
-	desired_v_up = 1.
+	desired_v_low = 0.6
+	desired_v_up = 1.6
 	conditions_dim = 3	#3
 	theta_dim = 20	#22 to include Kp and Ki
 	nn_units=[16,16]
@@ -68,11 +68,11 @@ class Settings():
 settings = Settings()
 
 """Customized Reward Func"""
-def get_reward(reward_params, reward_tau, desired_vel, current_vel_av, sum_error, mode="quadratic"):
+def get_reward(reward_params, reward_foot_height, desired_vel, current_vel_av, sum_error, mode="quadratic"):
 	alive_bonus, posafter, posbefore, velocity, a, w = reward_params[0], reward_params[1], reward_params[2], reward_params[3], reward_params[4], reward_params[5]
 	# print (desired_vel)
 	# print (velocity)
-	if mode == "linear_bowen":	#Works better so far, but can not follow desired speed
+	if mode == "quadratic_bowen":	#Works better so far, but can not follow desired speed
 		scale = 0.1
 		# if velocity < 0:
 		# 	velocity_reward = 0
@@ -84,24 +84,13 @@ def get_reward(reward_params, reward_tau, desired_vel, current_vel_av, sum_error
 				velocity_reward = (desired_vel / velocity)**2
 		else:
 			velocity_reward = 0
-
-
-
-
-		# elif abs(velocity-desired_vel) <= 0.1:
-		# 	if velocity < desired_vel:
-		# 		velocity_reward = (desirevelocity)/0.1
-
-		# elif velocity <= desired_vel-0.1:
-		# 	velocity_reward = (velocity/desired_vel)
-		# elif velocity >= desired_vel+0.1:
-		# 	velocity_reward = 0. #(desired_vel/velocity)
-		# else:
-		# 	velocity_reward = 1.
-
+	
+		angular_reward = a
+		error_reward = - (desired_vel - velocity)**2
 		action_reward = -1e-2 * np.sum(a**2)
 		displacement_reward  = posafter
-		reward = 10*velocity_reward # + 1*action_reward + 1*displacement_reward # + 0.5*sum_error
+		#reward = 10*velocity_reward # + 1*action_reward + 1*displacement_reward # + 0.5*sum_error
+		reward = 10*velocity_reward #+ 1*angular_reward
 		reward = scale*reward	
 
 
@@ -119,21 +108,20 @@ def get_reward(reward_params, reward_tau, desired_vel, current_vel_av, sum_error
 		reward = alive_bonus + 10*velocity_reward + 1*action_reward + 1*displacement_reward # + 0.5*sum_error
 		reward = scale*reward	
 
-	if mode == "quadraticB":
+	if mode == "quadratic_foot":
 		scale = 0.1
-		if abs(velocity - desired_vel) <= 0.1:
+		if abs(velocity-desired_vel) <= 0.1:
 			if velocity <= desired_vel:
-				velocity_reward = ((velocity/desired_vel)**2)
+				velocity_reward = (velocity / desired_vel)**2
 			else:
-				velocity_reward = ((desired_vel/velocity)**2)
+				velocity_reward = (desired_vel / velocity)**2
 		else:
 			velocity_reward = 0
 
-		# action_reward = -1e-2 * np.sum(a**2)
-		# displacement_reward  = posafter
-		# error_reward =  - (desired_vel - velocity)**2
-		# print(error_reward)
-		reward = 10*velocity_reward # + 1*action_reward + 1*displacement_reward + 1*error_reward
+		angular_reward = a
+		#reward = 10*velocity_reward # + 1*action_reward + 1*displacement_reward # + 0.5*sum_error
+		reward = 10*velocity_reward + 0*reward_foot_height
+		print(reward_foot_height)
 		reward = scale*reward	
 
 	return reward
@@ -192,45 +180,71 @@ class Policy():
 		pos, vel = state[0:7], state[7:14]
 		tau_right = np.clip(trajectory.tau_Right(pos,self.p), 0, 1.05)
 		tau_left = np.clip(trajectory.tau_Left(pos,self.p), 0, 1.05)
-		
+		reward_foot_height = 0
+		left_foot_height = 0
+		right_foot_height = 0
+
 		if self.mode == "hzd": 
-			reward_tau = 0
-			reward_step = 0
 			if tau_right > 1.0 and settings.aux == 0:
 				settings.aux = 1
-				reward_step = 10
 			if settings.aux == 0:
 				qd, tau = trajectory.yd_time_RightStance(pos,params.a_rightS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
 				qdotd = trajectory.d1yd_time_RightStance(pos,vel,params.a_rightS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
-				reward_tau = tau_right
+				left_foot_height = trajectory.left_foot_height(pos)
+				# print([tau_right, left_foot_height])
+				if tau_right > 0.25 and tau_right < 0.26 and left_foot_height > 0.05:
+					reward_foot_height = 100
+					# print(left_foot_height) 
+				if tau_right > 0.5 and tau_right < 0.51 and left_foot_height > 0.07:
+					reward_foot_height = 100
+					# print(left_foot_height)  	
+				if tau_right > 0.75 and tau_right < 0.76 and left_foot_height > 0.05:
+					reward_foot_height = 100
+					# print(left_foot_height) 		
 			else:
 				qd = trajectory.yd_time_LeftStance(pos,params.a_leftS,params.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
 				qdotd = trajectory.d1yd_time_LeftStance(pos,vel,params.a_leftS,params.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
-				reward_tau = tau_left
+				right_foot_height = trajectory.right_foot_height(pos)
 				if tau_left > 1.0 and settings.aux == 1:
 					settings.aux = 0
-					reward_step = 10
-			reward_tau +=reward_step 
 			# print(reward_tau)
 						
 		if self.mode == "hzdrl": 
-			reward_tau = 0
-			reward_step = 0
 			if tau_right > 1.0 and settings.aux == 0:
 				settings.aux = 1
-				reward_step = 10
 			if settings.aux == 0:
 				qd, tau = trajectory.yd_time_RightStance(pos,self.a_rightS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
 				qdotd = trajectory.d1yd_time_RightStance(pos,vel,self.a_rightS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier polynomials
-				reward_tau = tau_right
+				left_foot_height = trajectory.left_foot_height(pos)
+				# print([tau_right, left_foot_height])
+				if tau_right > 0.24 and tau_right < 0.26 and left_foot_height < 0.04:
+					reward_foot_height = -100
+					# print(left_foot_height) 
+				if tau_right > 0.49 and tau_right < 0.51 and left_foot_height < 0.05:
+					reward_foot_height = -100
+					# print(left_foot_height)  	
+				if tau_right > 0.74 and tau_right < 0.76 and left_foot_height < 0.04:
+					reward_foot_height = -100
+					# print(left_foot_height)  
 			else:
 				qd = trajectory.yd_time_LeftStance(pos,self.a_leftS,self.p)    #Compute the desired position for the actuated joints using the current measured state, the control parameters and bezier polynomials
 				qdotd = trajectory.d1yd_time_LeftStance(pos,vel,self.a_leftS,self.p)  #Compute the desired velocity for the actuated joints using the current measured state, the control parameters and bezier poly
-				reward_tau = tau_left
+				right_foot_height = trajectory.right_foot_height(pos)
+				# print([tau_left, right_foot_height])
+				if tau_left > 0.29 and tau_left < 0.31 and right_foot_height < 0.04:
+					reward_foot_height = -100
+					# print(right_foot_height) 
+				if tau_left > 0.49 and tau_left < 0.51 and right_foot_height < 0.05:
+					reward_foot_height = -100
+					# print(right_foot_height)  	
+				if tau_left > 0.74 and tau_left < 0.76 and right_foot_height < 0.04:
+					reward_foot_height = -100
+					# print(right_foot_height) 
+
+
+				
 				if tau_left > 1.0 and settings.aux == 1:
 					settings.aux = 0
-					reward_step = 10
-			reward_tau +=reward_step 
 				# print(reward_tau)
 		
 		if plot_mode:
@@ -241,7 +255,7 @@ class Policy():
 		action = self.pid.step(qd, qdotd, q, qdot)
 		# print([qd, qdotd, q, qdot, action])
 
-		return action, reward_tau
+		return action, reward_foot_height
 
 def init_plot():
 	tau_R = open("plots/tauR_data.txt","w+")     #Create text files to save the data for q and qdot desired (output of the trajectory functions)
@@ -409,9 +423,9 @@ def simulate(model, solution, settings,
 						action_min=settings.action_min, action_max=settings.action_max,
 						kp=settings.control_kp, kd=kd, feq=settings.frequency, mode = "hzdrl")
 
-			action, reward_tau = pi.get_action(state, settings.plot_mode)
+			action, reward_foot_height = pi.get_action(state, settings.plot_mode)
 			observation, reward_params, done, info = env.step(action)
-			reward = get_reward(reward_params, reward_tau, desired_velocity, current_speed_av, sum(error), mode="linear_bowen")
+			reward = get_reward(reward_params, reward_foot_height, desired_velocity, current_speed_av, sum(error), mode="quadratic_foot")
 			state = observation
 			if settings.plot_mode:
 				save_plot_2(state)			
@@ -476,19 +490,9 @@ if __name__ == "__main__":
 					 	  	  activations=settings.nn_activations)
 			models += [m]
 
-		
-		# desired_velocities = np.random.uniform(low=settings.desired_v_low, 
-		# 									   high=settings.desired_v_up, 
-		# 									   size=(settings.population,))
-		
-		# desired_velocities = np.array([0.8, 1.2, 1.2, 1.2, 0.8, 0.8, 1.2,1.2, 0.8, 0.8, 1.2, 0.8, 0.8, 0.8, 1.2, 1.2, 0.8, 0.8, 0.8, 1.2,0.8, 1.2, 0.8, 0.8])
-		# desired_velocities = np.random.uniform(low=0.5, high=1.5, size=(settings.population,2))
 
-		up_lim_vel = 1.6
-		down_lim_vel = 0.6
-		# desired_velocities = np.zeros(settings.population,) + 2.
 		render_mode = False
-		result = Parallel(n_jobs=settings.n_jobs, backend=settings.backend)(delayed(simulate)(models[i],solutions[i],settings,0.7, 1.6,render_mode,) for i in range(len(models)))
+		result = Parallel(n_jobs=settings.n_jobs, backend=settings.backend)(delayed(simulate)(models[i],solutions[i],settings,settings.desired_v_low, settings.desired_v_up,render_mode,) for i in range(len(models)))
 
 		rewards_list = []
 		timesteps_list = []

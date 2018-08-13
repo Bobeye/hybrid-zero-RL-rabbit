@@ -32,7 +32,7 @@ def load_model(filename):
     return model_params	
 
 if __name__ == "__main__":
-	policy_path = "log/"+"/policy/449.json"
+	policy_path = "log/"+"/policy/406.json"
 	video_path = None
 	# video_path = policy_path.split(".json")[0]
 	render_mode = True
@@ -59,22 +59,28 @@ if __name__ == "__main__":
 	if video_path is not None:
 		env = wrappers.Monitor(env, video_path, video_callable=lambda episode_id: True, force=True)
 	
-	for desired_velocity in [0.8, 1.0, 1.2, 1.5]:
+	# for desired_velocity in [0.7, 1.1, 1.5]:
+	for desired_velocity in [1.2]:
 	# for desired_velocity in range(1):
 		total_reward_list = []
 		velocity_list = []
 		state = env.reset()
+
+		for k in range(1000):
+			env.render()
+
+		print(state)
 		timesteps = 0
 		if state is None:
 			state = np.zeros(settings.state_size)
 		total_reward = 0
 		for t in range(min(4000,settings.max_episode_length)):
-			# if t < 1000:
-			# 	desired_velocity = 0.7
+			if t < 1000:
+				desired_velocity = 0.8
 			# elif t < 2000:
 			# 	desired_velocity = 1.3
-			# else:
-			# 	desired_velocity = 1.0	
+			else:
+				desired_velocity = 1.2	
 
 			if render_mode:
 				env.render()
@@ -96,15 +102,15 @@ if __name__ == "__main__":
 			theta_kd = model.predict(inputs_nn)
 			theta = bound_theta_sigmoid(theta_kd[0:settings.theta_dim])
 			kd = sigmoid(theta_kd[-1]) * settings.control_kd
+			print()
 				
 			pi = Policy(theta=theta, action_size=settings.action_size, 
 						action_min=settings.action_min, action_max=settings.action_max,
 						kp=settings.control_kp, kd=kd, feq=settings.frequency, mode="hzdrl") #Use mode="hzd" to run the hzd controller, and mode="hzdrl" to run the learned controller
-
-			action, reward_tau = pi.get_action(state, settings.plot_mode)
+			
+			action, reward_foot_height = pi.get_action(state, settings.plot_mode)
 			observation, reward_params, done, info = env.step(action)
-			reward = get_reward(reward_params, reward_tau, desired_velocity, current_speed_av, sum(error), mode="linear_bowen")
-			# print(action)
+			reward = get_reward(reward_params, reward_foot_height, desired_velocity, current_speed_av, sum(error), mode="quadratic_foot")
 			state = observation
 			velocity_list += [state[7]]
 			total_reward += reward
@@ -121,8 +127,8 @@ if __name__ == "__main__":
 		total_reward_list += [np.array([total_reward]).flatten()]
 		print(total_reward)
 		
-		# velocity_list_new = velocity_list[400:1600]
-		velocity_list_new = velocity_list
+		velocity_list_new = velocity_list[2000:3000]
+		# velocity_list_new = velocity_list
 		print(np.size(velocity_list))
 		vel_mean = np.sum(velocity_list_new)/np.size(velocity_list_new)
 		print(vel_mean, np.amin(velocity_list), np.amax(velocity_list))
