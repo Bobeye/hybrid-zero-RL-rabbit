@@ -2,6 +2,7 @@
 #	by Bowen, June, 2018
 #
 ################################
+
 from __future__ import division
 
 from es.nn import NeuralNetwork 
@@ -16,7 +17,6 @@ from joblib import Parallel, delayed
 import json
 import os
 import numpy as np
-
 
 """Hyperparameters"""
 class Settings():
@@ -44,10 +44,10 @@ class Settings():
 	nn_activations=["relu", "relu", "passthru"]
 	population = 20
 	sigma_init=0.1
-	sigma_decay=0.999
+	sigma_decay=0.9999
 	sigma_limit=1e-4
 	learning_rate=0.01
-	learning_rate_decay=0.999 
+	learning_rate_decay=0.9999 
 	learning_rate_limit=1e-6
 	aux = 0
 	upplim_jthigh = 250*(np.pi/180)
@@ -63,7 +63,7 @@ class Settings():
 settings = Settings()
 
 """Customized Reward Func"""
-def get_reward(reward_params, reward_tau, desired_vel, current_vel_av, sum_error, mode="linear1"):
+def get_reward(observation, reward_params, reward_tau, desired_vel, current_vel_av, sum_error, mode="linear1"):
 	alive_bonus, posafter, posbefore, velocity, a, w = reward_params[0], reward_params[1], reward_params[2], reward_params[3], reward_params[4], reward_params[5]
 	# print (desired_vel)
 	# print (velocity)
@@ -80,8 +80,10 @@ def get_reward(reward_params, reward_tau, desired_vel, current_vel_av, sum_error
 		else:
 			velocity_reward = 0
 
-
-
+		lf_clr = trajectory.left_foot_height(observation[0:7])
+		rf_clr = trajectory.right_foot_height(observation[0:7])
+		clearance_reward = 0.5*(lf_clr-rf_clr)**2
+		# clearance_reward = 0
 
 		# elif abs(velocity-desired_vel) <= 0.1:
 		# 	if velocity < desired_vel:
@@ -94,9 +96,10 @@ def get_reward(reward_params, reward_tau, desired_vel, current_vel_av, sum_error
 		# else:
 		# 	velocity_reward = 1.
 
-		action_reward = -1e-2 * np.sum(a**2)
-		displacement_reward  = posafter
-		reward = 10*velocity_reward # + 1*action_reward + 1*displacement_reward # + 0.5*sum_error
+		# action_reward = -1e-2 * np.sum(a**2)
+		# displacement_reward  = posafter
+		reward = 10*velocity_reward + clearance_reward # + 1*action_reward + 1*displacement_reward # + 0.5*sum_error
+		# print velocity_reward, clearance_reward
 		reward = scale*reward	
 
 
@@ -378,6 +381,7 @@ def make_env(env_name, seed=np.random.seed(None), render_mode=False, desired_vel
 
 # BOUND THETA USING TANH FUNCTION
 def bound_theta_tanh(theta):		#Add offset and restrict to range corresponding to each joint. The input is assumed to be bounded as tanh, with range -1,1
+	# theta = np.tanh(theta)
 	theta_thighR = np.array([theta[0], theta[4], theta[8], theta[12], theta[16]])
 	theta_legR = np.array([theta[1], theta[5], theta[9], theta[13], theta[17]])
 	theta_thighL = np.array([theta[2], theta[6], theta[10], theta[14], theta[18]])
@@ -455,9 +459,12 @@ def simulate(model, solution, settings,
 			inputs_nn = np.array([current_speed_av, 
 								  desired_velocity, 
 								  np.mean(np.array(error))])	
-			print current_speed, current_speed_av, desired_velocity
+			# print current_speed, current_speed_av, desired_velocity
 			theta_kd = model.predict(inputs_nn)
 			theta = bound_theta_sigmoid(theta_kd[0:settings.theta_dim])
+			# kp = settings.control_kp + (theta_kd[-2])*10
+			# kd = (theta_kd[-1]+1) * settings.control_kd
+			# kp = abs(theta_kd[-2])
 			kd = sigmoid(theta_kd[-1]) * settings.control_kd
 			pi = Policy(theta=theta, action_size=settings.action_size, 
 						action_min=settings.action_min, action_max=settings.action_max,
@@ -465,7 +472,7 @@ def simulate(model, solution, settings,
 
 			action, reward_tau = pi.get_action(state, settings.plot_mode)
 			observation, reward_params, done, info = env.step(action)
-			reward = get_reward(reward_params, reward_tau, desired_velocity, current_speed_av, sum(error), mode="linear_bowen")
+			reward = get_reward(observation, reward_params, reward_tau, desired_velocity, current_speed_av, sum(error), mode="linear_bowen")
 			state = observation
 			if settings.plot_mode:
 				save_plot_2(state)			
@@ -516,6 +523,8 @@ if __name__ == "__main__":
 	# 			  popsize=settings.population,
 	# 			  weight_decay=settings.sigma_decay)
 
+	rewards = []
+
 	step = 0
 	total_timesteps = 0
 	while total_timesteps < settings.total_threshold:
@@ -547,9 +556,12 @@ if __name__ == "__main__":
 		for r in result:
 			rewards_list += [r[0]]
 			timesteps_list += [r[1]]
-		rewards = np.array(rewards_list)
+		
+		rewards += rewards_list
+		while len(rewards) > 200:
+			del rewards [0]
 		total_timesteps += np.sum(np.array(timesteps_list))
-		escls.tell(rewards, solutions)
+		escls.tell(np.array(rewards_list), solutions)
 
 		log_string = (" ave_R ", int(np.mean(np.array(rewards))*100)/100., 
 					  " std_R ", int(np.std(np.array(rewards))*100)/100.,

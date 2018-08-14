@@ -357,3 +357,11 @@ def d1yd_time_LeftStance(var1, var2, var3, var4):
 	p_output1[2]=t3563*var2[2] + t3563*var2[5] + var2[6]*(-5.*t3488*t3502*t3513*var3[2] - 20.*t3482*t3498*t3499*t3513*var3[6] + 5.*t3488*t3502*t3513*var3[6] - 30.*t3493*t3494*t3495*t3513*var3[10] + 20.*t3482*t3498*t3499*t3513*var3[10] - 20.*t3486*t3487*t3490*t3513*var3[14] + 30.*t3493*t3494*t3495*t3513*var3[14] - 5.*t3446*t3483*t3513*var3[18] + 20.*t3486*t3487*t3490*t3513*var3[18] + 5.*t3446*t3483*t3513*var3[22])
 	p_output1[3]=t3589*var2[2] + t3589*var2[5] + var2[6]*(-5.*t3488*t3502*t3513*var3[3] - 20.*t3482*t3498*t3499*t3513*var3[7] + 5.*t3488*t3502*t3513*var3[7] - 30.*t3493*t3494*t3495*t3513*var3[11] + 20.*t3482*t3498*t3499*t3513*var3[11] - 20.*t3486*t3487*t3490*t3513*var3[15] + 30.*t3493*t3494*t3495*t3513*var3[15] - 5.*t3446*t3483*t3513*var3[19] + 20.*t3486*t3487*t3490*t3513*var3[19] + 5.*t3446*t3483*t3513*var3[23])
 	return p_output1
+
+def left_foot_height(var1):
+	p_output = 0.4*math.cos(var1[2]+var1[5]) + 0.4*math.cos(var1[2]+var1[5]+var1[6]) + var1[1]
+	return p_output
+
+def right_foot_height(var1):
+	p_output = 0.4*math.cos(var1[2]+var1[3]) + 0.4*math.cos(var1[2]+var1[3]+var1[4]) + var1[1]
+	return p_output

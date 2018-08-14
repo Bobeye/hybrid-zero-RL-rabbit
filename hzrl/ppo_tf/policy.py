@@ -69,12 +69,13 @@ class Policy(object):
         # hid3_size = self.act_dim * 10  # 10 empirically determined
         # hid2_size = int(np.sqrt(hid1_size * hid3_size))
         
-        hid1_size = self.obs_dim * self.hid1_mult
-        hid3_size = self.act_dim * self.hid1_mult
-        hid2_size = self.hid1_mult * self.hid1_mult
+        hid1_size = self.hid1_mult
+        hid3_size = self.hid1_mult
+        hid2_size = self.hid1_mult
 
         # heuristic to set learning rate based on NN size (tuned on 'Hopper-v1')
-        self.lr = 9e-4 / np.sqrt(hid2_size)  # 9e-4 empirically determined
+        # self.lr = 9e-4 / np.sqrt(hid2_size)  # 9e-4 empirically determined
+        self.lr = 0.01 / np.sqrt(hid2_size)
         # 3 hidden layers with tanh activations
         out = tf.layers.dense(self.obs_ph, hid1_size, tf.tanh,
                               kernel_initializer=tf.random_normal_initializer(
@@ -85,7 +86,7 @@ class Policy(object):
         out = tf.layers.dense(out, hid3_size, tf.tanh,
                               kernel_initializer=tf.random_normal_initializer(
                                   stddev=np.sqrt(1 / hid2_size)), name="h3")
-        self.means = tf.layers.dense(out, self.act_dim,
+        self.means = tf.layers.dense(out, self.act_dim, tf.tanh,
                                      kernel_initializer=tf.random_normal_initializer(
                                          stddev=np.sqrt(1 / hid3_size)), name="means")
         # logvar_speed is used to 'fool' gradient descent into making faster updates
@@ -113,6 +114,8 @@ class Policy(object):
                                          tf.exp(self.old_log_vars_ph), axis=1)
         self.logp_old = logp_old
 
+
+
     def _kl_entropy(self):
         """
         Add to Graph:
@@ -137,6 +140,7 @@ class Policy(object):
         self.sampled_act = (self.means +
                             tf.exp(self.log_vars / 2.0) *
                             tf.random_normal(shape=(self.act_dim,)))
+        self.sampled_act = tf.clip_by_value(self.sampled_act, -1, 1)
 
     def _loss_train_op(self):
         """
@@ -163,6 +167,8 @@ class Policy(object):
         optimizer = tf.train.AdamOptimizer(self.lr_ph)
         self.train_op = optimizer.minimize(self.loss)
 
+
+
     def _init_session(self):
         """Launch TensorFlow session and initialize variables"""
         self.sess = tf.Session(graph=self.g)
@@ -187,7 +193,8 @@ class Policy(object):
                      self.advantages_ph: advantages,
                      self.beta_ph: self.beta,
                      self.eta_ph: self.eta,
-                     self.lr_ph: self.lr * self.lr_multiplier}
+                     self.lr_ph: self.lr}
+                     # self.lr_ph: self.lr * self.lr_multiplier}
         old_means_np, old_log_vars_np = self.sess.run([self.means, self.log_vars],
                                                       feed_dict)
         feed_dict[self.old_log_vars_ph] = old_log_vars_np
@@ -200,14 +207,14 @@ class Policy(object):
             if kl > self.kl_targ * 4:  # early stopping if D_KL diverges badly
                 break
         # TODO: too many "magic numbers" in next 8 lines of code, need to clean up
-        if kl > self.kl_targ * 2:  # servo beta to reach D_KL target
-            self.beta = np.minimum(35, 1.5 * self.beta)  # max clip beta
-            if self.beta > 30 and self.lr_multiplier > 0.1:
-                self.lr_multiplier /= 1.5
-        elif kl < self.kl_targ / 2:
-            self.beta = np.maximum(1 / 35, self.beta / 1.5)  # min clip beta
-            if self.beta < (1 / 30) and self.lr_multiplier < 10:
-                self.lr_multiplier *= 1.5
+        # if kl > self.kl_targ * 2:  # servo beta to reach D_KL target
+        #     self.beta = np.minimum(35, 1.5 * self.beta)  # max clip beta
+        #     if self.beta > 30 and self.lr_multiplier > 0.1:
+        #         self.lr_multiplier /= 1.5
+        # elif kl < self.kl_targ / 2:
+        #     self.beta = np.maximum(1 / 35, self.beta / 1.5)  # min clip beta
+        #     if self.beta < (1 / 30) and self.lr_multiplier < 10:
+        #         self.lr_multiplier *= 1.5
 
         logger.log({'PolicyLoss': loss,
                     'PolicyEntropy': entropy,
