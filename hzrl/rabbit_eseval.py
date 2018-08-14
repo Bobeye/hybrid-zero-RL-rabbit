@@ -31,7 +31,7 @@ def load_model(filename):
 if __name__ == "__main__":
 	policy_path = "log/"+"/policy/449.json"
 	video_path = None
-	video_path = policy_path.split(".json")[0]
+	video_path = policy_path.split(".json")[0]+"_change"
 
 	render_mode = True
 	plot_mode = False
@@ -72,9 +72,9 @@ if __name__ == "__main__":
 	env = make_env(settings.env_name, render_mode=render_mode, desired_velocity = desired_velocity)
 	if video_path is not None:
 		env = wrappers.Monitor(env, video_path, video_callable=lambda episode_id: True, force=True)
-	
-	for desired_velocity in [0.8, 1.0, 1.2, 1.5]:
-	# for desired_velocity in range(1):
+	kds = []
+	# for desired_velocity in [0.8, 1.0, 1.2, 1.5]:
+	for desired_velocity in range(1):
 		total_reward_list = []
 		velocity_list = []
 
@@ -85,10 +85,10 @@ if __name__ == "__main__":
 			state = np.zeros(settings.state_size)
 		total_reward = 0
 		for t in range(min(4000,settings.max_episode_length)):
-			# if t < 1200:
-			# 	desired_velocity = 0.8
-			# else:
-			# 	desired_velocity = 1.3
+			if t < 1200:
+				desired_velocity = 0.8
+			else:
+				desired_velocity = 1.3
 
 
 			timesteps += 1
@@ -112,7 +112,7 @@ if __name__ == "__main__":
 			theta_kd = model.predict(inputs_nn)
 			theta = bound_theta_sigmoid(theta_kd[0:settings.theta_dim])
 			kd = sigmoid(theta_kd[-1]) * settings.control_kd
-
+			kds += [kd]
 			last_speed = current_speed
 			# else:
 			# 	print("Exception")
@@ -155,6 +155,8 @@ if __name__ == "__main__":
 		print(desired_velocity, vel_mean, np.amin(velocity_list), np.amax(velocity_list))
 
 
-		plt.plot(velocity_list)
-		# plt.show()
-		plt.savefig(video_path+"/"+str(desired_velocity)+".png")
+		# plt.plot(velocity_list)
+		# # plt.show()
+		# plt.savefig(video_path+"/"+str(desired_velocity)+".png")
+		plt.plot(kds)
+		plt.savefig(video_path+"/"+"kds.png")
