@@ -3,7 +3,7 @@ import trajectory
 """Customized Reward Func"""
 def get_reward(observation, desired_vel, velocity, mode="default"):
 	if mode == "default":	
-		if abs(velocity-desired_vel) <= 0.1:
+		if abs(velocity-desired_vel) <= 0.05:
 			if velocity <= desired_vel:
 				velocity_reward = (velocity / desired_vel)**2
 			else:

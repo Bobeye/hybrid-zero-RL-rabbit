@@ -86,6 +86,7 @@ class Evaluation():
 		kds = []
 		velocity_list = []
 		dvs = []
+		states = []
 
 		state = env.reset()
 		if state is None:
@@ -115,6 +116,7 @@ class Evaluation():
 			kds += [kd]
 			velocity_list += [state[7]]
 			dvs += [dv]
+			states += [state]
 				
 			pi = Policy(theta=theta, action_size=settings.action_size, 
 						action_min=settings.action_min, action_max=settings.action_max,
@@ -129,12 +131,14 @@ class Evaluation():
 		data["kds"] = np.array(kds)
 		data["vels"] = np.array(velocity_list)
 		data["dvs"] = np.array(dvs)
+		data["states"] = np.array(states)
 
 		with open(self.figure_path+"/fix_"+str(dv)+".pkl", "wb") as p:
 			pickle.dump(data, p)
 
 		plt.plot(velocity_list)
 		plt.savefig(self.figure_path+"/fix_"+str(dv)+".png")
+		plt.clf()
 
 	def run_vary(self):
 		render_mode = True
@@ -147,6 +151,7 @@ class Evaluation():
 		kds = []
 		velocity_list = []
 		dvs = []
+		states = []
 
 		state = env.reset()
 		if state is None:
@@ -186,6 +191,7 @@ class Evaluation():
 			kds += [kd]
 			velocity_list += [state[7]]
 			dvs += [dv]
+			states += [state]
 				
 			pi = Policy(theta=theta, action_size=settings.action_size, 
 						action_min=settings.action_min, action_max=settings.action_max,
@@ -200,6 +206,7 @@ class Evaluation():
 		data["kds"] = np.array(kds)
 		data["vels"] = np.array(velocity_list)
 		data["dvs"] = np.array(dvs)
+		data["states"] = np.array(states)
 
 		file = self.figure_path+"/vary_"
 		for v in self.desired_velocity:
@@ -210,13 +217,14 @@ class Evaluation():
 
 		plt.plot(velocity_list)
 		plt.savefig(file+".png")
+		plt.clf()
 
 
 
 
 
 if __name__ == "__main__":
-	candidates = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4]
+	candidates = [0.8, 1.0, 1.3]
 	for c in candidates:
 		test = Evaluation(policy_path="demo/demo.json",
 						  video_path="demo/video",

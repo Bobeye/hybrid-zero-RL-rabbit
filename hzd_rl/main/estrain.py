@@ -126,7 +126,8 @@ if __name__ == "__main__":
 	current_time = float(time.time())
 	training_time = 0.
 	episodes = 0
-	while total_timesteps < settings.total_threshold:
+	while episodes < settings.total_episodes:
+	# while total_timesteps < settings.total_threshold:
 		print("======== step {} ========" .format(step)) ###DEBUG MESSAGE	
 		solutions = escls.ask()
 		models = []
