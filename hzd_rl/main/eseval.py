@@ -85,6 +85,7 @@ class Evaluation():
 		
 		kds = []
 		velocity_list = []
+		dvs = []
 
 		state = env.reset()
 		if state is None:
@@ -113,6 +114,7 @@ class Evaluation():
 			kd = (1 / (1 + np.exp(-theta_kd[-1]))) * settings.control_kd
 			kds += [kd]
 			velocity_list += [state[7]]
+			dvs += [dv]
 				
 			pi = Policy(theta=theta, action_size=settings.action_size, 
 						action_min=settings.action_min, action_max=settings.action_max,
@@ -126,6 +128,8 @@ class Evaluation():
 		data = dict()
 		data["kds"] = np.array(kds)
 		data["vels"] = np.array(velocity_list)
+		data["dvs"] = np.array(dvs)
+
 		with open(self.figure_path+"/fix_"+str(dv)+".pkl", "wb") as p:
 			pickle.dump(data, p)
 
@@ -142,6 +146,7 @@ class Evaluation():
 		
 		kds = []
 		velocity_list = []
+		dvs = []
 
 		state = env.reset()
 		if state is None:
@@ -180,6 +185,7 @@ class Evaluation():
 			kd = (1 / (1 + np.exp(-theta_kd[-1]))) * settings.control_kd
 			kds += [kd]
 			velocity_list += [state[7]]
+			dvs += [dv]
 				
 			pi = Policy(theta=theta, action_size=settings.action_size, 
 						action_min=settings.action_min, action_max=settings.action_max,
@@ -193,6 +199,7 @@ class Evaluation():
 		data = dict()
 		data["kds"] = np.array(kds)
 		data["vels"] = np.array(velocity_list)
+		data["dvs"] = np.array(dvs)
 
 		file = self.figure_path+"/vary_"
 		for v in self.desired_velocity:
@@ -209,11 +216,21 @@ class Evaluation():
 
 
 if __name__ == "__main__":
-	test = Evaluation(policy_path="demo/demo.json",
-					  video_path="demo/video",
-					  figure_path="demo/figure",
-					  desired_velocity=[1.4],
-					  episode_length=3000)
+	candidates = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4]
+	for c in candidates:
+		test = Evaluation(policy_path="demo/demo.json",
+						  video_path="demo/video",
+						  figure_path="demo/data",
+						  desired_velocity=[c],
+						  episode_length=10000)
+
+	candidates = [[0.8, 1.4], [1.4, 0.8], [1.0, 0.8, 1.3], [0.9, 1.2, 0.9, 1.4]]
+	for c in candidates:
+		test = Evaluation(policy_path="demo/demo.json",
+						  video_path="demo/video",
+						  figure_path="demo/data",
+						  desired_velocity=c,
+						  episode_length=10000)
 
 
 
