@@ -2,8 +2,8 @@ from config import Settings
 settings = Settings()
 
 import numpy as np 
-import params
-import trajectory
+from rabbit_tools import params
+from rabbit_tools import trajectory
 
 """PID controller"""
 MIN_NUM = float('-inf')
