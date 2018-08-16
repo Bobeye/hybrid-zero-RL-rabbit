@@ -7,7 +7,7 @@ class Settings():
 	n_jobs = 20
 	frequency = 20.
 	total_threshold = 3e8
-	total_episodes = 2e5
+	total_episodes = 4e5
 	num_episode = 5
 	max_episode_length=3000
 	batch_mode="mean"

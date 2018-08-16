@@ -33,7 +33,7 @@ def load_model(filename):
 
 
 if __name__ == "__main__":
-	policy_path = "log/policy/800.json"
+	policy_path = "log/policy/1800.json"
 	render_mode = True
 
 	current_speed = 0.
@@ -57,8 +57,8 @@ if __name__ == "__main__":
 			state = np.zeros(settings.state_size)
 		total_reward = 0
 		done = False
-		# for t in range(min(3000,settings.max_episode_length)):
-		while not done:
+		for t in range(min(3000,settings.max_episode_length)):
+		# while not done:
 			timesteps += 1
 			if render_mode:
 				env.render()
