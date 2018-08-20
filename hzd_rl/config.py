@@ -4,7 +4,7 @@ class Settings():
 	txt_log = "log/" + "/train.txt"
 	policy_path = "log/"+ "/policy/"
 	backend = "multiprocessing"
-	n_jobs = 8
+	n_jobs = 20
 	frequency = 20.
 	total_threshold = 3e8
 	total_episodes = 4e5
@@ -18,11 +18,11 @@ class Settings():
 	control_kp = 150.
 	control_kd = 10.
 	desired_v_low = 0.6
-	desired_v_up = 1.5
+	desired_v_up = 1.6
 	conditions_dim = 3
 	theta_dim = 20
-	nn_units=[16,16]
-	nn_activations=["relu", "relu", "passthru"]
+	nn_units=[12,12,12]
+	nn_activations=["relu", "relu", "relu", "passthru"]
 	population = 20
 	sigma_init=0.1
 	sigma_decay=0.9999

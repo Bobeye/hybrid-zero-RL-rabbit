@@ -11,9 +11,10 @@ def get_reward(observation, desired_vel, velocity, mode="default"):
 		else:
 			velocity_reward = 0
 
-		lf_clr = trajectory.left_foot_height(observation[0:7])
-		rf_clr = trajectory.right_foot_height(observation[0:7])
-		clearance_reward = 0.02*(lf_clr-rf_clr)**2
+		# lf_clr = trajectory.left_foot_height(observation[0:7])
+		# rf_clr = trajectory.right_foot_height(observation[0:7])
+		# clearance_reward = 0.02*(lf_clr-rf_clr)**2
+		clearance_reward = 0.
 
 		ang_reward = 0.
 		# ang = observation[2]

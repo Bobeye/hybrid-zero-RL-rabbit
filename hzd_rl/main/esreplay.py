@@ -33,7 +33,7 @@ def load_model(filename):
 
 
 if __name__ == "__main__":
-	policy_path = "log/policy/1800.json"
+	policy_path = "log/policy/1900.json"
 	render_mode = True
 
 	current_speed = 0.
@@ -47,7 +47,7 @@ if __name__ == "__main__":
 	current_speed_list, error = [], []
 
 	env = make_env(settings.env_name, render_mode=render_mode)
-	for desired_velocity in [0.8, 1.0, 1.2, 1.5]:
+	for desired_velocity in [0.8, 1.0, 1.2, 1.4]:
 		total_reward_list = []
 		velocity_list = []
 

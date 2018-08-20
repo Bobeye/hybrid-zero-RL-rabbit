@@ -127,6 +127,8 @@ class Evaluation():
 			reward = get_reward(observation, dv, current_speed_av)
 			state = observation
 
+		env.close()
+
 		data = dict()
 		data["kds"] = np.array(kds)
 		data["vels"] = np.array(velocity_list)
@@ -202,6 +204,8 @@ class Evaluation():
 			reward = get_reward(observation, dv, current_speed_av)
 			state = observation
 
+		env.close()
+
 		data = dict()
 		data["kds"] = np.array(kds)
 		data["vels"] = np.array(velocity_list)
@@ -226,17 +230,17 @@ class Evaluation():
 if __name__ == "__main__":
 	candidates = [0.8, 1.0, 1.3]
 	for c in candidates:
-		test = Evaluation(policy_path="log/policy/3000.json",
-						  video_path="log/3000/video",
-						  figure_path="log/3000/data",
+		test = Evaluation(policy_path="log/policy/2300.json",
+						  video_path="log/2300/video",
+						  figure_path="log/2300/data",
 						  desired_velocity=[c],
 						  episode_length=10000)
 
 	candidates = [[0.8, 1.4], [1.4, 0.8], [1.0, 0.8, 1.3], [0.9, 1.2, 0.9, 1.4]]
 	for c in candidates:
-		test = Evaluation(policy_path="log/policy/3000.json",
-						  video_path="log/3000/video",
-						  figure_path="log/3000/data",
+		test = Evaluation(policy_path="log/policy/2300.json",
+						  video_path="log/2300/video",
+						  figure_path="log/2300/data",
 						  desired_velocity=c,
 						  episode_length=10000)
 
