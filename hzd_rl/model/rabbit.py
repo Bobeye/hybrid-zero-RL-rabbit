@@ -28,7 +28,8 @@ class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         if height < 0.6 or height > 1:
             done = True
             #print("done 2")
-        if abs(ang) > 0.5: 
+        # if abs(ang) > 0.5:
+        if ang < -0.2: 
         # if ang > 1 or ang < -0.5:   
             done = True
             #print("done 3")
@@ -73,12 +74,12 @@ class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     #============= This are new added methods. For using them you have to declare them in "mujoco_env.py" and "core.py"
     #============= Otherwise you have to call them from the main .py file by using "env.unwrapped.new_method_name()"
-    def get_state(self):
-        return self.model.data.qpos, self.model.data.qvel
+    # def get_state(self):
+    #     return self.model.data.qpos, self.model.data.qvel
 
-    def get_sensor_data(self,sensor_name):
-        return self.model.data.get_sensor(sensor_name)    
+    # def get_sensor_data(self,sensor_name):
+    #     return self.model.data.get_sensor(sensor_name)    
 
-    def assign_desired_vel(self,desired_vel):
-        self.desired_vel = desired_vel
+    # def assign_desired_vel(self,desired_vel):
+    #     self.desired_vel = desired_vel
     #=====================================================================================================================

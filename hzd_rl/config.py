@@ -4,7 +4,7 @@ class Settings():
 	txt_log = "log/" + "/train.txt"
 	policy_path = "log/"+ "/policy/"
 	backend = "multiprocessing"
-	n_jobs = 20
+	n_jobs = 8
 	frequency = 20.
 	total_threshold = 3e8
 	total_episodes = 4e5
@@ -17,8 +17,8 @@ class Settings():
 	action_max = 4.
 	control_kp = 150.
 	control_kd = 10.
-	desired_v_low = 0.5
-	desired_v_up = 1.7
+	desired_v_low = 0.6
+	desired_v_up = 1.5
 	conditions_dim = 3
 	theta_dim = 20
 	nn_units=[16,16]
