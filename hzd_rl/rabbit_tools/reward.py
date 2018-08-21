@@ -17,8 +17,9 @@ def get_reward(observation, desired_vel, velocity, mode="default"):
 		rf_clr = trajectory.right_foot_height(observation[0:7])
 		clearance_reward = 0.5*(lf_clr-rf_clr)**2
 		# clearance_reward = abs(lf_clr-rf_clr)
+		#step_reward = 0.5*(observation[3]-observation[5])**2
 
-		reward = 0.1 * (10 * velocity_reward + 1*clearance_reward + 0.25*angle + 1*lf_clr + 1*rf_clr)
+		reward = 0.1 * (10 * velocity_reward + 1*clearance_reward# + 1*step_reward #+ 0.25*angle 
 
 		#reward = 0.1 * (10 * velocity_reward + 2*clearance_reward + 0.25*angle)   Did not work with abs(velocity-desired_vel) <= 1:  
 
