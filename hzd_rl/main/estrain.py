@@ -43,7 +43,7 @@ def simulate(model, solution, settings, render_mode):
 	error = []
 	env = make_env(settings.env_name, render_mode=render_mode)
 
-	total_reward_list = [];	timesteps = 0;	reward_list = [];
+	total_reward_list = [];	timesteps = 0;	reward_list = []
 	for episode in range(settings.num_episode):	
 		state = env.reset()
 		if state is None:

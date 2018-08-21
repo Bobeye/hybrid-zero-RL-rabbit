@@ -102,7 +102,7 @@ def yd_time_RightStance(var1, var2, var3):
 	p_output1[1]=t2723*var2[1] + 5.*t2704*t2709*t2721*var2[5] + 10.*t2717*t2718*t2719*var2[9] + 10.*t2713*t2714*t2715*var2[13] + 5.*t2707*t2708*t2711*var2[17] + t2683*t2705*var2[21]
 	p_output1[2]=t2723*var2[2] + 5.*t2704*t2709*t2721*var2[6] + 10.*t2717*t2718*t2719*var2[10] + 10.*t2713*t2714*t2715*var2[14] + 5.*t2707*t2708*t2711*var2[18] + t2683*t2705*var2[22]
 	p_output1[3]=t2723*var2[3] + 5.*t2704*t2709*t2721*var2[7] + 10.*t2717*t2718*t2719*var2[11] + 10.*t2713*t2714*t2715*var2[15] + 5.*t2707*t2708*t2711*var2[19] + t2683*t2705*var2[23]
-	return p_output1, -t2710
+	return p_output1
 
 def yd_time_LeftStance(var1, var2, var3):
 	p_output1 = np.zeros(4)

@@ -33,7 +33,7 @@ def load_model(filename):
 
 
 if __name__ == "__main__":
-	policy_path = "log/policy/800.json"
+	policy_path = "log/policy/1290.json"
 	render_mode = True
 
 	current_speed = 0.
