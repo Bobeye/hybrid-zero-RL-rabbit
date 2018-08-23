@@ -135,7 +135,7 @@ class Evaluation():
 
 			if t > 1000 and t % 1000 < 100:
 				# u = env.adv_action_space.sample()
-				u = np.array([4, 0])
+				u = np.array([-4, 0])
 				observation, reward_params, done, info = env.step_adv(action, u)
 			else:
 				u = np.zeros(2)
