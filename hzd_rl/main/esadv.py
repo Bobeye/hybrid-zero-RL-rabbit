@@ -38,7 +38,8 @@ class Evaluation():
 				 figure_path=None,
 				 desired_velocity=[],
 				 episode_length=3000,
-				 policy_mode="hzdrl"):
+				 policy_mode="hzdrl",
+				 adversary_mode="forward"):
 		self.model = NeuralNetwork(input_dim=settings.conditions_dim,
 					 	  		   output_dim=settings.theta_dim+1,
 					 	  		   units=settings.nn_units,
@@ -47,6 +48,7 @@ class Evaluation():
 		self.model.set_weights(model_params)
 
 		self.policy_mode = policy_mode
+		self.adversary_mode = adversary_mode
 
 		self.video_path = video_path
 		self.figure_path = figure_path
@@ -100,7 +102,7 @@ class Evaluation():
 		done = False
 		t = 0
 		u = np.zeros(2)
-		while done is False and t < 10000:
+		while done is False and t < 5000:
 			if render_mode:
 				env.render()
 				
@@ -133,9 +135,14 @@ class Evaluation():
 
 			action = pi.get_action(state)
 
-			if t > 1000 and t % 1000 < 100:
+			if t > 2000 and t % 1000 < 500:
 				# u = env.adv_action_space.sample()
-				u = np.array([-4, 0])
+				if self.adversary_mode == "forward":
+					u = np.array([4, 0])
+				if self.adversary_mode == "backward":
+					u = np.array([-5, 0])
+				if self.adversary_mode == "backward_hard":
+					u = np.array([-8, 0])
 				observation, reward_params, done, info = env.step_adv(action, u)
 			else:
 				u = np.zeros(2)
@@ -245,14 +252,15 @@ class Evaluation():
 
 
 if __name__ == "__main__":
-	candidates = [0.8, 1.0, 1.3]
+	candidates = [1.0]
 	for c in candidates:
-		test = Evaluation(policy_path="log/policy/1000.json",
-						  video_path="log/1000/adv/hzdrl",
-						  figure_path="log/1000/adv/hzdrl",
+		test = Evaluation(policy_path="log/policy/2000.json",
+						  video_path="log/2000/adv/hzdrl_backward_hard",
+						  figure_path="log/2000/adv/hzdrl_backward_hard",
 						  desired_velocity=[c],
 						  episode_length=10000,
-						  policy_mode="hzdrl")
+						  policy_mode="hzdrl",
+						  adversary_mode="backward_hard")
 	# policy_path = "log/policy/1900.json"
 	# render_mode = True
 
