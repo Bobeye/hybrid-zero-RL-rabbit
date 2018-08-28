@@ -228,22 +228,45 @@ class Evaluation():
 
 
 if __name__ == "__main__":
-	candidates = [0.8, 1.0, 1.3]
-	for c in candidates:
-		test = Evaluation(policy_path="log/policy/2300.json",
-						  video_path="log/2300/video",
-						  figure_path="log/2300/data",
-						  desired_velocity=[c],
-						  episode_length=10000)
+	# candidates = [0.8, 1.0, 1.3]
+	# for c in candidates:
+	# 	test = Evaluation(policy_path="log/policy/2300.json",
+	# 					  video_path="log/2300/video",
+	# 					  figure_path="log/2300/data",
+	# 					  desired_velocity=[c],
+	# 					  episode_length=10000)
 
-	candidates = [[0.8, 1.4], [1.4, 0.8], [1.0, 0.8, 1.3], [0.9, 1.2, 0.9, 1.4]]
-	for c in candidates:
-		test = Evaluation(policy_path="log/policy/2300.json",
-						  video_path="log/2300/video",
-						  figure_path="log/2300/data",
-						  desired_velocity=c,
-						  episode_length=10000)
+	# candidates = [[0.8, 1.4], [1.4, 0.8], [1.0, 0.8, 1.3], [0.9, 1.2, 0.9, 1.4]]
+	# for c in candidates:
+	# 	test = Evaluation(policy_path="log/policy/2300.json",
+	# 					  video_path="log/2300/video",
+	# 					  figure_path="log/2300/data",
+	# 					  desired_velocity=c,
+	# 					  episode_length=10000)
 
+
+	# for i in range(2000):
+	# 	if (i % 50 == 0 and i < 1000):
+	# 		test = Evaluation(policy_path="log/policy/"+str(i)+".json",
+	# 					  	  video_path="log/"+str(i)+"/video",
+	# 					  	  figure_path="log/"+str(i)+"/data",
+	# 					  	  desired_velocity=[0.9, 1.2, 0.9, 1.4],
+	# 					  	  episode_length=10000)
+	# 	if i>1000 and i<2000 and i%200 == 0:
+	# 		test = Evaluation(policy_path="log/policy/"+str(i)+".json",
+	# 					  	  video_path="log/"+str(i)+"/video",
+	# 					  	  figure_path="log/"+str(i)+"/data",
+	# 					  	  desired_velocity=[0.9, 1.2, 0.9, 1.4],
+	# 					  	  episode_length=10000)
+
+	for i in range(200):
+		if i % 10 == 0:
+			test = Evaluation(policy_path="log/policy/"+str(i)+".json",
+						  	  video_path="log/"+str(i)+"/video",
+						  	  figure_path="log/"+str(i)+"/data",
+						  	  desired_velocity=[0.9, 1.2, 0.9, 1.4],
+						  	  episode_length=10000)
+		
 
 
 	# policy_path = "demo/demo.json"
