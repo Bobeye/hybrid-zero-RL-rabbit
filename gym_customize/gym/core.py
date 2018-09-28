@@ -44,11 +44,20 @@ class Env(object):
     action_space = None
     observation_space = None
 
-    ### Methods added by G.C.
+    #==================== Methods added by G.C. =================== You must also define this methods in the below class Wrapper(Env)
     def get_state(self):    
         raise NotImplementedError    
 
+    def assign_desired_vel(self, desired_vel):
+        raise NotImplementedError
 
+    def just_simulate(self,n_frames):
+        for _ in range(n_frames):
+            self.sim.step()
+
+    def get_sensor_data(self,sensor_name):
+        return self.sim.data.get_sensor(sensor_name)   
+    #==================== Methods added by G.C. ===================
 
 
 
@@ -291,9 +300,19 @@ class Wrapper(Env):
                 "which is required for wrappers derived directly from Wrapper. Deprecated default implementation is used.")
             return self.env.reset(**kwargs)
 
-            
-    def get_state(self):     
-        return self.env.get_state()
+#==================== Methods added by G.C. =================== You must also define this methods in the below class Wrapper(Env)
+    def get_state(self):    
+        return self.env.get_state()  
+
+    def assign_desired_vel(self, desired_vel):
+        return self.env.assign_desired_vel(desired_vel) 
+
+    def just_simulate(self,n_frames):
+        return self.env.just_simulate
+
+    def get_sensor_data(self,sensor_name):
+        return self.env.get_sensor_data(sensor_name)   
+    #==================== Methods added by G.C. ===================    
 
     def render(self, mode='human'):
         return self.env.render(mode)

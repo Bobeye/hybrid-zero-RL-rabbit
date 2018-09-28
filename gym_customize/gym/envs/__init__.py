@@ -262,7 +262,7 @@ register(
 register(
     id='Rabbit-v0',
     entry_point='gym.envs.mujoco:RabbitEnv',
-    max_episode_steps=1000,
+    max_episode_steps=3000,
     reward_threshold=3800.0,
 )
 

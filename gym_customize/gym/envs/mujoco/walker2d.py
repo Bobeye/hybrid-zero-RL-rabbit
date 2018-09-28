@@ -5,7 +5,7 @@ from gym.envs.mujoco import mujoco_env
 class Walker2dEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def __init__(self):
-        mujoco_env.MujocoEnv.__init__(self, "walker2d.xml", 4)
+        mujoco_env.MujocoEnv.__init__(self, "walker2d.xml", 1)
         utils.EzPickle.__init__(self)
 
     def step(self, a):
@@ -27,10 +27,9 @@ class Walker2dEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return np.concatenate([qpos[0:], np.clip(qvel, -10, 10)]).ravel()
 
     def reset_model(self):
-        self.set_state(
-            self.init_qpos + self.np_random.uniform(low=-.005, high=.005, size=self.model.nq),
-            self.init_qvel + self.np_random.uniform(low=-.005, high=.005, size=self.model.nv)
-        )
+        init_pos = np.array([-0.0812, 0.9670, 0.0335, 0.3310, -0.6036, 0.3061, -0.0033, -0.3794, 0.4163])
+        init_vel = np.array([1.5270, -0.4120, -0.8073, 0.1093, -2.8490, 1.9324, 0.1745, -3.1006, 2.1188])
+        self.set_state(init_pos,init_vel)
         return self._get_obs()
 
     def viewer_setup(self):
