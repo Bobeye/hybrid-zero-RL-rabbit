@@ -1,4 +1,4 @@
-import trajectory
+from rabbit_tools import trajectory
 
 """Customized Reward Func"""
 def get_reward(observation, desired_vel, velocity, mode="default"):

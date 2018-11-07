@@ -10,3 +10,6 @@ ERROR: Invalid activation key
 Wed Aug 15 11:24:50 2018
 ERROR: Invalid activation key
 
+Tue Sep 18 16:09:23 2018
+ERROR: Expired activation key
+

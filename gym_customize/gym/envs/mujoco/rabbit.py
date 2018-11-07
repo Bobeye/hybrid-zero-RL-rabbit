@@ -28,7 +28,9 @@ class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         if height < 0.6 or height > 1:
             done = True
             #print("done 2")
-        if abs(ang) > 1:    
+        # if abs(ang) > 0.5: 
+        # if ang > 1 or ang < -0.5:   
+        if ang < -0.2 or ang > 0.5:
             done = True
             #print("done 3")
 
@@ -55,8 +57,8 @@ class RabbitEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         ])
 
     def reset_model(self):
-        init_pos = np.array([-0.2000, 0.7546, 0.1675, 2.4948, 0.4405, 3.1894, 0.2132])
-        init_vel = np.array([0.7743, 0.2891, 0.3796, 1.1377, -0.9273, -0.1285, 1.6298])
+        init_pos = np.array([-0.2000, 0.7546, 0.1675, 2.4948, 0.4405, 3.1894, 0.2132])+self.np_random.uniform(low=-.001, high=.001, size=self.model.nq)
+        init_vel = np.array([0.7743, 0.2891, 0.3796, 1.1377, -0.9273, -0.1285, 1.6298])+self.np_random.uniform(low=-.001, high=.001, size=self.model.nv)
         #qpos = init_pos + self.np_random.uniform(low=-.005, high=.005, size=self.model.nq)
         #qvel = init_vel + self.np_random.uniform(low=-.005, high=.005, size=self.model.nv)
         qpos = init_pos
