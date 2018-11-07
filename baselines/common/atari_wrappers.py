@@ -4,8 +4,8 @@ os.environ.setdefault('PATH', '')
 from collections import deque
 import gym
 from gym import spaces
-import cv2
-cv2.ocl.setUseOpenCL(False)
+# import cv2
+# cv2.ocl.setUseOpenCL(False)
 
 class NoopResetEnv(gym.Wrapper):
     def __init__(self, env, noop_max=30):

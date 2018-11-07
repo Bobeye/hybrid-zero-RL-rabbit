@@ -17,6 +17,7 @@ from baselines.common.atari_wrappers import make_atari, wrap_deepmind
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from baselines.common import retro_wrappers
+from baselines.comman import hzd_gym
 
 def make_vec_env(env_id, env_type, num_env, seed, wrapper_kwargs=None, start_index=0, reward_scale=1.0, gamestate=None):
     """
@@ -86,6 +87,25 @@ def make_mujoco_env(env_id, seed, reward_scale=1.0):
         env = RewardScaler(env, reward_scale)
     return env
 
+def make_hzd_env(env_id, seed, reward_scale=1.0):
+    # TODO: make customized env for humenoid_hzd
+    """
+    Create a wrapped, monitored gym.Env for MuJoCo.
+    """
+    rank = MPI.COMM_WORLD.Get_rank()
+    myseed = seed  + 1000 * rank if seed is not None else None
+    set_global_seeds(myseed)
+    
+    env = hzd_gym.HZDENV().env
+    
+    logger_path = None if logger.get_dir() is None else os.path.join(logger.get_dir(), str(rank))
+    env = Monitor(env, logger_path, allow_early_resets=True)
+    env.seed(seed)
+    if reward_scale != 1.0:
+        from baselines.common.retro_wrappers import RewardScaler
+        env = RewardScaler(env, reward_scale)
+    return env
+
 def make_robotics_env(env_id, seed, rank=0):
     """
     Create a wrapped, monitored gym.Env for MuJoCo.
@@ -114,6 +134,10 @@ def atari_arg_parser():
     return common_arg_parser()
 
 def mujoco_arg_parser():
+    print('Obsolete - use common_arg_parser instead')
+    return common_arg_parser()
+
+def hzd_arg_parser():
     print('Obsolete - use common_arg_parser instead')
     return common_arg_parser()
 
