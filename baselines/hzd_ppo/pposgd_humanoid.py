@@ -7,24 +7,25 @@ from baselines.common.mpi_adam import MpiAdam
 from baselines.common.mpi_moments import mpi_moments
 from mpi4py import MPI
 from collections import deque
+import os
 
 
 def eval(pi, env, horizon, stochastic):
-    t = 0
-	ac = env.action_space.sample() # not used, just so we have the datatype
-	new = True # marks if we're on first timestep of an episode
-	ob = env.reset()
-	env.render()
-	for _ in range(horizon):
-	    ac, vpred = pi.act(stochastic, ob)
-	    ob, rew, new, _ = env.step(ac)
-	    env.render()
-	    if new:
-	        break
+	for epi in range(3):
+		ac = env.action_space.sample() # not used, just so we have the datatype
+		new = True # marks if we're on first timestep of an episode
+		ob = env.reset()
+		env.render()
+		for _ in range(horizon):
+			ac, vpred = pi.act(stochastic, ob)
+			ob, rew, new, _ = env.step(ac)
+			env.render()
+			if new:
+				break
 	env.reset() 
 
 
-def traj_segment_generator(pi, env, horizon, stochastic):
+def traj_segment_generator(pi,env, horizon, stochastic):
     t = 0
     ac = env.action_space.sample() # not used, just so we have the datatype
     new = True # marks if we're on first timestep of an episode
@@ -101,8 +102,9 @@ def learn(env, policy_fn, *,
         max_timesteps=0, max_episodes=0, max_iters=0, max_seconds=0,  # time constraint
         callback=None, # you can do anything in the callback, since it takes locals(), globals()
         adam_epsilon=1e-5,
-        schedule='constant' # annealing for stepsize parameters (epsilon and adam)
-        ):
+        schedule='constant', # annealing for stepsize parameters (epsilon and adam)
+        save_path=None,
+        eval_env=None):
     # Setup losses and stuff
     # ----------------------------------------
     ob_space = env.observation_space
@@ -143,6 +145,11 @@ def learn(env, policy_fn, *,
 
     U.initialize()
     adam.sync()
+
+    # model_path = save_path+"Iter_2/model.model"
+	# saver=tf.train.Saver()
+	# saver.restore(tf.get_default_session(), model_path)
+	# logger.log("Loaded model from {}".format(model_path))
 
     # Prepare for rollouts
     # ----------------------------------------
@@ -227,6 +234,15 @@ def learn(env, policy_fn, *,
         logger.record_tabular("TimeElapsed", time.time() - tstart)
         if MPI.COMM_WORLD.Get_rank()==0:
             logger.dump_tabular()
+
+        if iters_so_far % 100 == 0:
+            model_path = save_path+"Iter_"+str(iters_so_far)+"/"
+            if not os.path.exists(model_path):
+                os.makedirs(model_path)
+            model_name = model_path+"model.model"
+            U.save_state(model_name)
+            logger.log("Saved model to file :{}".format(model_name))
+            eval(pi, eval_env, timesteps_per_actorbatch, stochastic=True)
 
     return pi
 

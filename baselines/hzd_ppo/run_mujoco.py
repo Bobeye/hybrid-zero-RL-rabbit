@@ -13,7 +13,7 @@ def train(env_id, num_timesteps, seed):
             hid_size=64, num_hid_layers=2)
     
     env = make_mujoco_env(env_id, seed)
-    
+
     pposgd_simple.learn(env, policy_fn,
             max_timesteps=num_timesteps,
             timesteps_per_actorbatch=2048,
@@ -24,7 +24,7 @@ def train(env_id, num_timesteps, seed):
     env.close()
 
 def main():
-    args = mujoco_arg_parser().parse_args()
+    args = mujoco_arg_parser().parse_args()     #It is taking the return of the mujoco_arg_parser() function defined in the cmd.util.py file. The it is applying ON THIS RETURNED object the default python function parse_args(), and assign this object to the var args
     logger.configure(args.save_path)
     train(args.env, num_timesteps=args.num_timesteps, seed=args.seed)
 
