@@ -1,5 +1,6 @@
 # hybrid-zero-RL-rabbit
 
+```
 @inproceedings{castillo2019reinforcement,
   title={Reinforcement learning meets hybrid zero dynamics: A case study for rabbit},
   author={Castillo, Guillermo A and Weng, Bowen and Hereid, Ayonga and Wang, Zheng and Zhang, Wei},
@@ -8,3 +9,4 @@
   year={2019},
   organization={IEEE}
 }
+```
